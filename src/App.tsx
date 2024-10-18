@@ -1,26 +1,21 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
 
-function App() {
+const App: React.FC = () => {
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
+        <h1>Multi-Person Financial Tracker</h1>
         <p>
-          Edit <code>src/App.tsx</code> and save to reload.
+          Welcome to your personal financial dashboard.
         </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        {/* Placeholder for other components or navigation */}
       </header>
+      <main>
+        {/* Future content like Routes, Dashboards, or components can go here */}
+      </main>
     </div>
   );
-}
+};
 
 export default App;
