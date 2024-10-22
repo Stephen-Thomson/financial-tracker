@@ -1,90 +1,72 @@
-import { getUserByPublicKey, addUser, addTeamMember, getTeamMembers } from '../db';
+import axios, { AxiosError } from 'axios';
 
 // Allowed roles
 const allowedRoles = ['Manager', 'Accountant', 'Staff'] as const;
 type AllowedRoles = typeof allowedRoles[number];
 
+// Helper function to check if error is AxiosError
+const isAxiosError = (error: unknown): error is AxiosError => {
+  return (error as AxiosError).isAxiosError !== undefined;
+};
+
 // Function to fetch the role of the current user based on their public key
 export const fetchUserRoleFromBlockchain = async (publicKey: string): Promise<string | null> => {
   try {
-    const user = await getUserByPublicKey(publicKey);
-    
-    if (user) {
-      return user.role; // Return the user's role
-    } else {
-      // Return null if no user data exists yet, indicating a new user
-      return null;
-    }
+    const response = await axios.get(`http://localhost:5000/api/users/role/${publicKey}`);
+    return response.data.role;
   } catch (error) {
-    console.error('Error fetching user role from blockchain (MySQL):', error);
+    if (isAxiosError(error)) {
+      console.error('Error fetching user role from blockchain:', error.response?.data || error.message);
+    } else {
+      console.error('Unknown error:', error);
+    }
     return null;
   }
 };
 
-// Function to store team members on the blockchain (database in this case)
+// Function to store team members on the blockchain
 export const storeTeamMemberOnBlockchain = async (publicKey: string, email: string, role: string) => {
-    try {
-      // Check if the role is valid
-      if (!allowedRoles.includes(role as AllowedRoles)) {
-        throw new Error(`Invalid role: ${role}. Role must be one of ${allowedRoles.join(', ')}`);
-      }
-  
-      const user = await getUserByPublicKey(publicKey);
-      
-      if (user) {
-        await addTeamMember(user.id, email, role as AllowedRoles); // Add team member to the database
-        console.log(`Team member ${email} with role ${role} stored in database.`);
-      } else {
-        console.error('User not found');
-      }
-    } catch (error) {
-      console.error('Failed to store team member in the database:', error);
-    }
-  };
-
-// Function to check if the user already exists in the database
-export const checkUserExistsOnBlockchain = async (publicKey: string): Promise<boolean> => {
   try {
-    const user = await getUserByPublicKey(publicKey);
-    return !!user; // Return true if the user exists, otherwise false
+    if (!allowedRoles.includes(role as AllowedRoles)) {
+      throw new Error(`Invalid role: ${role}. Role must be one of ${allowedRoles.join(', ')}`);
+    }
+
+    await axios.post('http://localhost:5000/api/team-members', { publicKey, email, role });
+    console.log(`Team member ${email} with role ${role} stored on the blockchain.`);
   } catch (error) {
-    console.error('Error checking user existence in database:', error);
-    return false;
+    if (isAxiosError(error)) {
+      console.error('Failed to store team member on the blockchain:', error.response?.data || error.message);
+    } else {
+      console.error('Unknown error:', error);
+    }
   }
 };
 
-// Function to create a new user entry in the database (for key user during onboarding)
-export const createBlockchainFileForUser = async (publicKey: string, email: string) => {
+// Function to fetch team members from the blockchain (simulated by database)
+export const fetchTeamMembersFromBlockchain = async (): Promise<{ email: string; role: string }[]> => {
   try {
-    const userExists = await checkUserExistsOnBlockchain(publicKey);
-
-    if (!userExists) {
-      // Store the key user information in the database
-      await addUser(publicKey, 'keyPerson'); // 'keyPerson' role for the key user
-      console.log('New user created in the database for key user.');
-    } else {
-      console.log('User already exists in the database.');
-    }
+    const response = await axios.get(`http://localhost:5000/api/team-members`);
+    return response.data.teamMembers;
   } catch (error) {
-    console.error('Error creating user in database:', error);
-  }
-};
-
-// Function to fetch team members of the key user
-export const fetchTeamMembersFromBlockchain = async (publicKey: string) => {
-  try {
-    const user = await getUserByPublicKey(publicKey);
-    
-    if (user) {
-      const teamMembers = await getTeamMembers(user.id); // Fetch team members
-      return teamMembers;
+    if (isAxiosError(error)) {
+      console.error('Error fetching team members from blockchain:', error.response?.data || error.message);
     } else {
-      console.error(`User with publicKey ${publicKey} not found.`);
-      return [];
+      console.error('Unknown error:', error);
     }
-  } catch (error) {
-    console.error('Error fetching team members from database:', error);
     return [];
   }
 };
 
+// Function to remove a team member from the blockchain
+export const removeTeamMemberFromBlockchain = async (email: string) => {
+  try {
+    await axios.delete(`http://localhost:5000/api/team-members/${email}`);
+    console.log(`Team member with email ${email} removed from the blockchain.`);
+  } catch (error) {
+    if (isAxiosError(error)) {
+      console.error('Error removing team member from blockchain:', error.response?.data || error.message);
+    } else {
+      console.error('Unknown error:', error);
+    }
+  }
+};

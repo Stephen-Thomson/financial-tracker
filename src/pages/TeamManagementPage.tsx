@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { getTeamMembers, addTeamMember, removeTeamMember } from '../services/blockchain/blockchain'; // Placeholder functions
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 const TeamManagementPage: React.FC = () => {
@@ -9,29 +9,35 @@ const TeamManagementPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Fetch the team members when the page loads
+  // Fetch team members from the API when the page loads
   useEffect(() => {
-    const fetchMembers = async () => {
+    const fetchTeamMembers = async () => {
       try {
-        const members = await getTeamMembers(); // Fetch team members from blockchain
-        setTeamMembers(members);
+        const response = await axios.get('/api/team-members');
+        setTeamMembers(response.data);
       } catch (error) {
         console.error('Error fetching team members:', error);
         setErrorMessage('Failed to fetch team members.');
       }
     };
-    fetchMembers();
+
+    fetchTeamMembers();
   }, []);
 
-  // Add a new team member
+  // Add a new team member by calling the API
   const handleAddMember = async () => {
     try {
       if (!newMemberEmail) {
         setErrorMessage('Please provide an email address.');
         return;
       }
-      await addTeamMember(newMemberEmail, newMemberRole);
-      setTeamMembers([...teamMembers, { email: newMemberEmail, role: newMemberRole }]);
+
+      const response = await axios.post('/api/team-members', {
+        email: newMemberEmail,
+        role: newMemberRole
+      });
+
+      setTeamMembers([...teamMembers, response.data]);
       setNewMemberEmail('');
       setNewMemberRole('Manager');
     } catch (error) {
@@ -40,11 +46,13 @@ const TeamManagementPage: React.FC = () => {
     }
   };
 
-  // Remove a team member
+  // Remove a team member by calling the API
   const handleRemoveMember = async (index: number) => {
     try {
       const memberToRemove = teamMembers[index];
-      await removeTeamMember(memberToRemove.email); // Remove the team member from the blockchain
+
+      await axios.delete(`/api/team-members/${memberToRemove.email}`);
+
       const updatedMembers = [...teamMembers];
       updatedMembers.splice(index, 1);
       setTeamMembers(updatedMembers);

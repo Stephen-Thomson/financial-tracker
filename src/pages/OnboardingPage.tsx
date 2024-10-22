@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { storeTeamMemberOnBlockchain, createBlockchainFileForUser, checkUserExistsOnBlockchain } from '../services/blockchain/blockchain';
+import { storeTeamMemberOnBlockchain } from '../services/blockchain/blockchain'; 
+
+// Define the valid account types to ensure type safety
+type AccountType = 'incomeAccounts' | 'expenseAccounts' | 'assetAccounts' | 'liabilityAccounts';
 
 const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ publicKey, email }) => {
   const navigate = useNavigate();
 
   // States for various sections of onboarding
   const [step, setStep] = useState<number>(1);
-  const [primaryAccounts, setPrimaryAccounts] = useState({
+  const [primaryAccounts, setPrimaryAccounts] = useState<{
+    incomeAccounts: string;
+    expenseAccounts: string;
+    assetAccounts: string;
+    liabilityAccounts: string;
+  }>({
     incomeAccounts: '',
     expenseAccounts: '',
     assetAccounts: '',
@@ -16,22 +24,11 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
   const [budgetCategories, setBudgetCategories] = useState<string[]>(['Rent', 'Utilities', 'Salaries']);
   const [teamMembers, setTeamMembers] = useState<{ email: string; role: string }[]>([]);
   const [backupCompleted, setBackupCompleted] = useState<boolean>(false);
-
-  // Check if the user already exists in the "blockchain" (i.e., in the database)
-  useEffect(() => {
-    const checkExistingUser = async () => {
-      const userExists = await checkUserExistsOnBlockchain(publicKey);
-      if (!userExists) {
-        // Create a new blockchain entry for the key user if not already present
-        await createBlockchainFileForUser(publicKey, email);
-      }
-    };
-
-    checkExistingUser();
-  }, [publicKey, email]);
+  const [teamEmail, setTeamEmail] = useState<string>('');
+  const [teamRole, setTeamRole] = useState<string>('Manager');
 
   // Handlers for form inputs
-  const handleAccountChange = (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+  const handleAccountChange = (e: React.ChangeEvent<HTMLInputElement>, type: AccountType) => {
     setPrimaryAccounts({
       ...primaryAccounts,
       [type]: e.target.value
@@ -55,10 +52,15 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
   };
 
   // Add a team member and store them on the blockchain (in the database)
-  const handleAddTeamMember = async (teamEmail: string, role: string) => {
+  const handleAddTeamMember = async () => {
     try {
-      await storeTeamMemberOnBlockchain(publicKey, teamEmail, role); // Store team member on the blockchain
-      setTeamMembers([...teamMembers, { email: teamEmail, role }]);
+      if (!teamEmail) {
+        return;
+      }
+      await storeTeamMemberOnBlockchain(publicKey, teamEmail, teamRole);
+      setTeamMembers([...teamMembers, { email: teamEmail, role: teamRole }]);
+      setTeamEmail('');
+      setTeamRole('Manager');
     } catch (error) {
       console.error('Error adding team member to blockchain:', error);
     }
@@ -78,7 +80,6 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
     if (step < 5) {
       setStep(step + 1);
     } else {
-      // If all steps are complete, navigate to the dashboard
       navigate('/dashboard');
     }
   };
@@ -89,51 +90,30 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
     }
   };
 
+  const accountTypes: AccountType[] = ['incomeAccounts', 'expenseAccounts', 'assetAccounts', 'liabilityAccounts'];
+
   return (
     <div className="onboarding-page">
       <h1>Onboarding Process</h1>
+      <p>Public Key: {publicKey}</p>
+      <p>Email: {email}</p>
       <p>Step {step} of 5</p>
 
       {/* Step 1: Create Primary Accounts */}
       {step === 1 && (
         <div>
           <h2>Create Primary Accounts</h2>
-          <div>
-            <label>Income Accounts:</label>
-            <input
-              type="text"
-              value={primaryAccounts.incomeAccounts}
-              onChange={(e) => handleAccountChange(e, 'incomeAccounts')}
-              placeholder="e.g., Sales, Consulting"
-            />
-          </div>
-          <div>
-            <label>Expense Accounts:</label>
-            <input
-              type="text"
-              value={primaryAccounts.expenseAccounts}
-              onChange={(e) => handleAccountChange(e, 'expenseAccounts')}
-              placeholder="e.g., Rent, Utilities"
-            />
-          </div>
-          <div>
-            <label>Asset Accounts:</label>
-            <input
-              type="text"
-              value={primaryAccounts.assetAccounts}
-              onChange={(e) => handleAccountChange(e, 'assetAccounts')}
-              placeholder="e.g., Property, Investments"
-            />
-          </div>
-          <div>
-            <label>Liability Accounts:</label>
-            <input
-              type="text"
-              value={primaryAccounts.liabilityAccounts}
-              onChange={(e) => handleAccountChange(e, 'liabilityAccounts')}
-              placeholder="e.g., Loans, Accounts Payable"
-            />
-          </div>
+          {accountTypes.map((type) => (
+            <div key={type}>
+              <label>{type.replace(/Accounts$/, ' Accounts')}:</label>
+              <input
+                type="text"
+                value={primaryAccounts[type]}
+                onChange={(e) => handleAccountChange(e, type)}
+                placeholder={`e.g., ${type === 'incomeAccounts' ? 'Sales, Consulting' : ''}`}
+              />
+            </div>
+          ))}
         </div>
       )}
 
@@ -168,17 +148,19 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
           ))}
           <div>
             <label>Email:</label>
-            <input type="email" id="team-email" placeholder="e.g., member@example.com" />
+            <input
+              type="email"
+              value={teamEmail}
+              onChange={(e) => setTeamEmail(e.target.value)}
+              placeholder="e.g., member@example.com"
+            />
             <label>Role:</label>
-            <select id="team-role">
+            <select value={teamRole} onChange={(e) => setTeamRole(e.target.value)}>
               <option value="Manager">Manager</option>
               <option value="Accountant">Accountant</option>
               <option value="Staff">Staff</option>
             </select>
-            <button onClick={() => handleAddTeamMember(
-              (document.getElementById('team-email') as HTMLInputElement).value,
-              (document.getElementById('team-role') as HTMLSelectElement).value
-            )}>Add Team Member</button>
+            <button onClick={handleAddTeamMember}>Add Team Member</button>
           </div>
         </div>
       )}

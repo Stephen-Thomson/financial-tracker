@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import { isAuthenticated, waitForAuthentication, getPublicKey } from '@babbage/sdk-ts';
 import { useNavigate } from 'react-router-dom';
-import { fetchUserRoleFromBlockchain } from '../services/blockchain/blockchain'; // Fetch the role of the user
+import { fetchUserRoleFromBlockchain } from '../services/blockchain/blockchain';
+
+// Function to simulate fetching email placeholder
+const getUserEmail = async (): Promise<string> => {
+  // TODO: Replace with actual user email fetching logic
+  return 'user@example.com'; // Replace with actual user email
+};
 
 const connectWallet = async () => {
   try {
@@ -28,7 +34,7 @@ const connectWallet = async () => {
   }
 };
 
-const LoginPage: React.FC<{ onLoginSuccess: (publicKey: string) => void }> = ({ onLoginSuccess }) => {
+const LoginPage: React.FC<{ onLoginSuccess: (publicKey: string, email: string) => void }> = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -43,7 +49,8 @@ const LoginPage: React.FC<{ onLoginSuccess: (publicKey: string) => void }> = ({ 
       if (publicKey) {
         // Fetch the user's role from blockchain using their public key
         const userRole = await fetchUserRoleFromBlockchain(publicKey);
-        
+        const userEmail = await getUserEmail(); // Simulate fetching user's email
+
         if (userRole === 'keyPerson') {
           console.log('Key person identified');
           navigate('/onboarding'); // Redirect to onboarding for key person
@@ -54,8 +61,8 @@ const LoginPage: React.FC<{ onLoginSuccess: (publicKey: string) => void }> = ({ 
           setErrorMessage('No valid role found. Please contact the administrator.');
         }
 
-        // Pass the public key to the onLoginSuccess callback
-        onLoginSuccess(publicKey);
+        // Pass the public key and email to the onLoginSuccess callback
+        onLoginSuccess(publicKey, userEmail);
 
       } else {
         setErrorMessage('Failed to connect wallet. Please try again.');

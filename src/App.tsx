@@ -9,13 +9,13 @@ const App: React.FC = () => {
         <p>
           Welcome to your personal financial dashboard.
         </p>
-        {/* Placeholder for other components or navigation */}
       </header>
       <main>
-        {/* Future content like Routes, Dashboards, or components can go here */}
+
       </main>
     </div>
   );
 };
 
 export default App;
+
