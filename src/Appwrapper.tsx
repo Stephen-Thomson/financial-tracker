@@ -10,6 +10,10 @@ import TransactionPage from './pages/TransactionPage';
 import GeneralJournal from './components/GeneralJournal';
 import CreateExpense from './components/CreateExpense';
 import CreateIncome from './components/CreateIncome';
+import CreateAsset from './components/CreateAsset';  // Add CreateAsset
+import CreateLiability from './components/CreateLiability';  // Add CreateLiability
+import CreateAccountsPage from './pages/CreateAccountsPage';  // Add CreateAccountsPage
+import ManagerPage from './pages/ManagerPage';  // Add ManagerPage
 import Totals from './components/Totals';
 import OnboardingPage from './pages/OnboardingPage';
 import Dashboard from './pages/Dashboard';
@@ -71,6 +75,10 @@ const Appwrapper: React.FC = () => {
       <Route path="/generalJournal" element={<GeneralJournal />} />
       <Route path="/createExpense" element={<CreateExpense />} />
       <Route path="/createIncome" element={<CreateIncome />} />
+      <Route path="/createAsset" element={<CreateAsset />} /> {/* Add CreateAsset */}
+      <Route path="/createLiability" element={<CreateLiability />} /> {/* Add CreateLiability */}
+      <Route path="/create-accounts" element={<CreateAccountsPage onboarding={true} />} /> {/* Add CreateAccountsPage */}
+      <Route path="/manager" element={<ManagerPage onboarding={true} />} /> {/* Add ManagerPage */}
       <Route path="/totals" element={<Totals />} />
     </Routes>
   );
