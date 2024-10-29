@@ -1,12 +1,82 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { createAction, getPublicKey } from '@babbage/sdk-ts';
+import pushdrop from 'pushdrop';
 
 const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ publicKey, email }) => {
   const navigate = useNavigate();
 
-  // States for various sections of onboarding
   const [step, setStep] = useState<number>(1);
   const [backupCompleted, setBackupCompleted] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Create the General Journal with a blockchain entry as the onboarding starts
+    const handleCreateGeneralJournal = async () => {
+      setIsLoading(true);
+      try {
+        const userPublicKey = await getPublicKey({
+          reason: 'General Journal creation authorization',
+          identityKey: true,
+        });
+
+        // Step 1: Create the General Journal table on the backend
+        await axios.post('/api/general-journal/create');
+
+        // Step 2: Generate the output script for the General Journal creation entry
+        const journalCreationOutputScript = await pushdrop.create({
+          fields: [
+            Buffer.from(new Date().toISOString()), // Date of Entry
+            Buffer.from("General Journal creation"), // Description of Entry
+            Buffer.from("0"),                        // Debit Amount
+            Buffer.from("0"),                        // Credit Amount
+            Buffer.from("General Journal")           // Account Type
+          ],
+          protocolID: 'financial-tracker-journalentry', // Unique protocol ID
+          keyID: userPublicKey || 'default-key-id'      // User’s public key
+        });
+
+        // Step 3: Create a blockchain transaction with the generated script
+        const actionResult = await createAction({
+          outputs: [
+            {
+              satoshis: 1,  // Set a minimum satoshi amount
+              script: journalCreationOutputScript,
+              description: 'General Journal creation entry'
+            }
+          ],
+          description: 'Creating General Journal entry transaction'
+        });
+
+        // Extract transaction details
+        const txid = actionResult.txid;
+        const rawTx = actionResult.rawTx;
+
+        // Step 4: Insert the General Journal creation entry into the backend
+        await axios.post('/api/general-journal/entry', {
+          date: new Date().toISOString().split('T')[0],
+          description: 'General Journal creation',
+          debit: 0,
+          credit: 0,
+          accountName: 'General Journal',
+          viewPermission: 'Manager',
+          txid,
+          outputScript: journalCreationOutputScript,
+          metadata: { rawTx }
+        });
+
+        console.log('General Journal created with blockchain entry');
+      } catch (error) {
+        console.error('Error creating General Journal:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Run the General Journal creation once on load
+    handleCreateGeneralJournal();
+  }, []);
 
   const handleBackupComplete = () => {
     setBackupCompleted(true);
@@ -73,7 +143,7 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
       {/* Navigation Buttons */}
       <div className="onboarding-navigation">
         {step > 1 && <button onClick={handlePreviousStep}>Back</button>}
-        <button onClick={handleNextStep}>{step === 5 ? 'Complete Onboarding' : 'Next'}</button>
+        <button onClick={handleNextStep} disabled={isLoading}>{step === 5 ? 'Complete Onboarding' : 'Next'}</button>
       </div>
     </div>
   );
