@@ -17,6 +17,11 @@ import ManagerPage from './pages/ManagerPage';
 import Totals from './components/Totals';
 import OnboardingPage from './pages/OnboardingPage';
 import Dashboard from './pages/Dashboard';
+import MessagePage from './pages/MessagePage';
+import UHRPPage from './pages/UHRPPage';
+import PaymentPage from './pages/PaymentPage';
+import ViewAccountPage from './pages/ViewAccountPage'; // New page
+import ViewGeneralJournalPage from './pages/ViewGeneralJournalPage'; // New page
 
 const AppWrapper: React.FC = () => {
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
@@ -31,15 +36,14 @@ const AppWrapper: React.FC = () => {
       const role = await fetchUserRoleFromBlockchain(publicKey);
       setUserRole(role);
 
-      if (role === 'keyPerson') {
+      if (role === 'Deleted') {
+        alert('Access Denied: Your account has been deactivated.');
+      } else if (role === 'keyPerson') {
         setIsKeyPerson(true);
         setIsOnboarded(false);
-      } else if (role === 'limitedUser') {
+      } else {
         setIsKeyPerson(false);
         setIsOnboarded(true);
-      } else {
-        setIsKeyPerson(null);
-        setIsOnboarded(null);
       }
     } catch (error) {
       console.error('Error checking user role:', error);
@@ -56,13 +60,15 @@ const AppWrapper: React.FC = () => {
 
   useEffect(() => {
     if (isKeyPerson !== null && isOnboarded !== null) {
-      if (isKeyPerson && !isOnboarded) {
-        navigate('/onboarding');
-      } else if (isOnboarded) {
-        navigate('/dashboard');
+      if (userRole !== 'Deleted') {
+        if (isKeyPerson && !isOnboarded) {
+          navigate('/onboarding');
+        } else if (isOnboarded) {
+          navigate('/dashboard');
+        }
       }
     }
-  }, [isKeyPerson, isOnboarded, navigate]);
+  }, [isKeyPerson, isOnboarded, userRole, navigate]);
 
   return (
     <div className="app-wrapper">
@@ -70,22 +76,24 @@ const AppWrapper: React.FC = () => {
       <header>
         <nav>
           <Link to="/dashboard">Dashboard</Link>
-          {userRole === 'keyPerson' && (
+          {['keyPerson', 'Manager', 'Accountant'].includes(userRole!) && (
             <>
-              <Link to="/budget">Budget</Link>
               <Link to="/adjustableBudget">Adjustable Budget</Link>
+              <Link to="/budget">Budget</Link>
+              <Link to="/create-accounts">Create Accounts</Link>
+              {userRole === 'keyPerson' && <Link to="/manager">Manage Team</Link>}
               <Link to="/transaction">Transaction</Link>
               <Link to="/generalJournal">General Journal</Link>
-              <Link to="/create-accounts">Create Accounts</Link>
-              <Link to="/manager">Manage Team</Link>
-              <Link to="/totals">Totals</Link>
+              <Link to="/viewAccount">View Accounts</Link>
+              <Link to="/viewGeneralJournal">View General Journal</Link>
             </>
           )}
-          {userRole === 'limitedUser' && (
+          {['keyPerson', 'Manager', 'Accountant', 'Staff'].includes(userRole!) && (
             <>
-              <Link to="/transaction">Transaction</Link>
-              <Link to="/generalJournal">General Journal</Link>
               <Link to="/totals">Totals</Link>
+              <Link to="/message">Messages</Link>
+              <Link to="/uhrp">UHRP Documents</Link>
+              <Link to="/payment">Payments</Link>
             </>
           )}
         </nav>
@@ -94,21 +102,28 @@ const AppWrapper: React.FC = () => {
       {/* Main content routes */}
       <Routes>
         <Route path="/" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
-        {userPublicKey && userEmail && (
-          <Route path="/onboarding" element={<OnboardingPage publicKey={userPublicKey} email={userEmail} />} />
+        {userPublicKey && userEmail && userRole !== 'Deleted' && (
+          <>
+            <Route path="/onboarding" element={<OnboardingPage publicKey={userPublicKey} email={userEmail} />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/budget" element={<BudgetPage />} />
+            <Route path="/adjustableBudget" element={<AdjustableBudgetPage />} />
+            <Route path="/transaction" element={<TransactionPage />} />
+            <Route path="/generalJournal" element={<GeneralJournal />} />
+            <Route path="/createExpense" element={<CreateExpense />} />
+            <Route path="/createIncome" element={<CreateIncome />} />
+            <Route path="/createAsset" element={<CreateAsset />} />
+            <Route path="/createLiability" element={<CreateLiability />} />
+            <Route path="/create-accounts" element={<CreateAccountsPage onboarding={true} />} />
+            <Route path="/manager" element={<ManagerPage onboarding={true} />} />
+            <Route path="/totals" element={<Totals />} />
+            <Route path="/message" element={<MessagePage />} />
+            <Route path="/uhrp" element={<UHRPPage />} />
+            <Route path="/payment" element={<PaymentPage />} />
+            <Route path="/viewAccount" element={<ViewAccountPage />} />
+            <Route path="/viewGeneralJournal" element={<ViewGeneralJournalPage />} />
+          </>
         )}
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/budget" element={<BudgetPage />} />
-        <Route path="/adjustableBudget" element={<AdjustableBudgetPage />} />
-        <Route path="/transaction" element={<TransactionPage />} />
-        <Route path="/generalJournal" element={<GeneralJournal />} />
-        <Route path="/createExpense" element={<CreateExpense />} />
-        <Route path="/createIncome" element={<CreateIncome />} />
-        <Route path="/createAsset" element={<CreateAsset />} />
-        <Route path="/createLiability" element={<CreateLiability />} />
-        <Route path="/create-accounts" element={<CreateAccountsPage onboarding={true} />} />
-        <Route path="/manager" element={<ManagerPage onboarding={true} />} />
-        <Route path="/totals" element={<Totals />} />
       </Routes>
     </div>
   );
