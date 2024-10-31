@@ -43,6 +43,36 @@ const initializeDatabase = async () => {
       );
     `);
 
+    await connection.query(`
+      CREATE TABLE messages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        message_id VARCHAR(255) NOT NULL, -- unique identifier from PeerServ
+        sender_public_key VARCHAR(255) NOT NULL, -- public key of the sender
+        recipient_public_key VARCHAR(255) NOT NULL, -- public key of the recipient
+        message_body TEXT NOT NULL, -- the main content of the message
+        message_type ENUM('request', 'approval', 'notification', 'payment') DEFAULT 'notification', -- categorize message types
+        status ENUM('pending', 'acknowledged', 'error') DEFAULT 'pending', -- message status
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      );
+    `);
+  
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS payment_tokens (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        transaction_status ENUM('pending', 'completed', 'failed') DEFAULT 'pending',
+        encrypted_data TEXT, -- Encrypted data for sensitive fields (e.g., amount, sender/recipient keys, custom instructions)
+        txid VARCHAR(255) NOT NULL, -- Unique transaction ID for tracking
+        output_script TEXT NOT NULL, -- Script associated with the transaction (generated via pushdrop.create)
+        token_id VARCHAR(255), -- Unique identifier for the token
+        basket VARCHAR(50) DEFAULT 'payment_token', -- Classification for overlay service and state management
+        encryption_metadata JSON, -- Metadata for decryption (e.g., keys, algorithm info)
+        metadata JSON, -- Additional non-encrypted metadata
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log('Database and tables initialized successfully');
     connection.end();
   } catch (error) {
@@ -53,7 +83,7 @@ const initializeDatabase = async () => {
 
 // Get all users
 export const getUsers = async () => {
-  const [rows] = await pool.query('SELECT email, role, basket FROM users');
+  const [rows] = await pool.query('SELECT email, role, public_key FROM users');
   return rows;
 };
 
@@ -303,6 +333,121 @@ export const getLastEntry = async (accountName: string) => {
   return rows.length > 0 ? { runningTotal: rows[0].running_total, basket: rows[0].basket } : null;
 };
 
+// Add a new message
+export const addMessage = async (
+  messageId: string,
+  senderPublicKey: string,
+  recipientPublicKey: string,
+  messageBody: string,
+  messageType: 'request' | 'approval' | 'notification' | 'payment'
+) => {
+  try {
+    await pool.query(
+      'INSERT INTO messages (message_id, sender_public_key, recipient_public_key, message_body, message_type, status) VALUES (?, ?, ?, ?, ?, "pending")',
+      [messageId, senderPublicKey, recipientPublicKey, messageBody, messageType]
+    );
+    console.log(`Message ${messageId} added successfully`);
+  } catch (error) {
+    console.error('Error adding message:', error);
+    throw error;
+  }
+};
+
+// Retrieve messages for a user
+export const getMessagesForUser = async (recipientPublicKey: string) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM messages WHERE recipient_public_key = ?',
+      [recipientPublicKey]
+    );
+    console.log(`Messages retrieved for user ${recipientPublicKey}`);
+    return rows;
+  } catch (error) {
+    console.error('Error retrieving messages:', error);
+    throw error;
+  }
+};
+
+// Update message status
+export const updateMessageStatus = async (messageId: string, status: 'pending' | 'acknowledged' | 'error') => {
+  try {
+    await pool.query(
+      'UPDATE messages SET status = ? WHERE message_id = ?',
+      [status, messageId]
+    );
+    console.log(`Message ${messageId} status updated to ${status}`);
+  } catch (error) {
+    console.error('Error updating message status:', error);
+    throw error;
+  }
+};
+
+// Function to add a new payment token
+export const addPaymentToken = async (
+  encryptedData: string,
+  txid: string,
+  outputScript: string,
+  tokenId: string,
+  encryptionMetadata: object,
+  metadata: object
+) => {
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO payment_tokens 
+       (transaction_status, encrypted_data, txid, output_script, token_id, encryption_metadata, metadata) 
+       VALUES ('pending', ?, ?, ?, ?, ?, ?)`,
+      [encryptedData, txid, outputScript, tokenId, JSON.stringify(encryptionMetadata), JSON.stringify(metadata)]
+    );
+    return result;
+  } catch (error) {
+    console.error('Error adding payment token:', error);
+    throw error;
+  }
+};
+
+// Function to retrieve payment tokens by transaction status
+export const getPaymentTokensByStatus = async (status: string) => {
+  try {
+    const [rows]: [RowDataPacket[], any] = await pool.query(
+      'SELECT * FROM payment_tokens WHERE transaction_status = ?',
+      [status]
+    );
+    return rows;
+  } catch (error) {
+    console.error('Error retrieving payment tokens by status:', error);
+    throw error;
+  }
+};
+
+// Function to update the transaction status of a payment token
+export const updatePaymentTokenStatus = async (txid: string, status: string) => {
+  try {
+    const [result] = await pool.query(
+      `UPDATE payment_tokens 
+       SET transaction_status = ?, updated_at = CURRENT_TIMESTAMP 
+       WHERE txid = ?`,
+      [status, txid]
+    );
+    return result;
+  } catch (error) {
+    console.error('Error updating payment token status:', error);
+    throw error;
+  }
+};
+
+// Function to retrieve a specific payment token by txid
+export const getPaymentTokenByTxid = async (txid: string) => {
+  try {
+    const [rows]: [RowDataPacket[], any] = await pool.query(
+      'SELECT * FROM payment_tokens WHERE txid = ?',
+      [txid]
+    );
+    return rows.length > 0 ? rows[0] : null;
+  } catch (error) {
+    console.error('Error retrieving payment token by txid:', error);
+    throw error;
+  }
+};
 
 // Call the function to initialize the database when the program starts
 initializeDatabase().catch((err) => console.error('Failed to initialize database', err));

@@ -4,7 +4,10 @@ import {
   getUsers, addUser, removeUser, getUserRole,
   createAccountTable, insertAccountEntry, viewAccountEntries,
   insertGeneralJournalEntry, createGeneralJournalTable,
-  getUserEmailByPublicKey, getLastEntry
+  getUserEmailByPublicKey, getLastEntry,
+  addMessage, getMessagesForUser, updateMessageStatus,
+  addPaymentToken, getPaymentTokensByStatus, updatePaymentTokenStatus,
+  getPaymentTokenByTxid
 } from './db';
 
 const app = express();
@@ -200,3 +203,93 @@ app.get('/api/accounts/last-entry/:accountName', async (req, res) => {
   }
 });
 
+// Add a new message
+app.post('/api/messages', async (req, res) => {
+  const { messageId, senderPublicKey, recipientPublicKey, messageBody, messageType } = req.body;
+  try {
+    await addMessage(messageId, senderPublicKey, recipientPublicKey, messageBody, messageType);
+    res.json({ message: `Message ${messageId} added successfully` });
+  } catch (error) {
+    console.error('Error adding message:', error);
+    res.status(500).json({ message: 'Error adding message' });
+  }
+});
+
+// Retrieve messages for a specific user
+app.get('/api/messages', async (req, res) => {
+  const { recipient_public_key } = req.query;
+  try {
+    const messages = await getMessagesForUser(recipient_public_key as string);
+    res.json(messages);
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    res.status(500).json({ message: 'Error fetching messages' });
+  }
+});
+
+// Update message status
+app.patch('/api/messages/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    await updateMessageStatus(id, status);
+    res.json({ message: `Message ${id} status updated to ${status}` });
+  } catch (error) {
+    console.error('Error updating message status:', error);
+    res.status(500).json({ message: 'Error updating message status' });
+  }
+});
+
+// Endpoint to add a new payment token
+app.post('/api/payment-tokens', async (req, res) => {
+  const { encryptedData, txid, outputScript, tokenId, encryptionMetadata, metadata } = req.body;
+  try {
+    const result = await addPaymentToken(encryptedData, txid, outputScript, tokenId, encryptionMetadata, metadata);
+    res.status(201).json({ message: 'Payment token added successfully', result });
+  } catch (error) {
+    console.error('Error adding payment token:', error);
+    res.status(500).json({ message: 'Error adding payment token' });
+  }
+});
+
+// Endpoint to retrieve payment tokens by transaction status
+app.get('/api/payment-tokens/status/:status', async (req, res) => {
+  const { status } = req.params;
+  try {
+    const tokens = await getPaymentTokensByStatus(status);
+    res.json(tokens);
+  } catch (error) {
+    console.error('Error retrieving payment tokens by status:', error);
+    res.status(500).json({ message: 'Error retrieving payment tokens' });
+  }
+});
+
+// Endpoint to update the transaction status of a payment token
+app.patch('/api/payment-tokens/:txid/status', async (req, res) => {
+  const { txid } = req.params;
+  const { status } = req.body;
+
+  try {
+    const result = await updatePaymentTokenStatus(txid, status);
+    res.json({ message: `Payment token status updated to ${status}`, result });
+  } catch (error) {
+    console.error('Error updating payment token status:', error);
+    res.status(500).json({ message: 'Error updating payment token status' });
+  }
+});
+
+// Endpoint to retrieve a specific payment token by txid
+app.get('/api/payment-tokens/:txid', async (req, res) => {
+  const { txid } = req.params;
+  try {
+    const token = await getPaymentTokenByTxid(txid);
+    if (token) {
+      res.json(token);
+    } else {
+      res.status(404).json({ message: 'Payment token not found' });
+    }
+  } catch (error) {
+    console.error('Error retrieving payment token by txid:', error);
+    res.status(500).json({ message: 'Error retrieving payment token' });
+  }
+});

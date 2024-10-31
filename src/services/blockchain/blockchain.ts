@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { createAction, getPublicKey } from '@babbage/sdk-ts';
 import pushdrop from 'pushdrop';
+import crypto from 'crypto';
 
 type AllowedRoles = 'Manager' | 'Accountant' | 'Staff' | 'Viewer' | 'keyPerson' | 'limitedUser';
 
@@ -406,5 +407,35 @@ const calculateRunningTotal = async (accountName: string, debitAmount: number, c
   } catch (error) {
     console.error(`Error calculating running total for account ${accountName}:`, error);
     throw new Error(`Failed to calculate running total for ${accountName}`);
+  }
+};
+
+/**
+ * Decrypts an encrypted string using a private key.
+ * 
+ * @param encryptedData - The encrypted string to decrypt
+ * @param privateKey - The user's private key for decryption
+ * @returns The decrypted string or an error if decryption fails
+ */
+export const decryptData = (encryptedData: string, privateKey: string): string | null => {
+  try {
+    // Convert encrypted data and private key to buffers
+    const encryptedBuffer = Buffer.from(encryptedData, 'base64');
+    const keyBuffer = Buffer.from(privateKey, 'base64');
+    
+    // Decryption setup (assumes RSA encryption, adjust as needed)
+    const decryptedBuffer = crypto.privateDecrypt(
+      {
+        key: keyBuffer.toString(),
+        padding: crypto.constants.RSA_PKCS1_PADDING,
+      },
+      encryptedBuffer
+    );
+
+    // Return decrypted text
+    return decryptedBuffer.toString('utf-8');
+  } catch (error) {
+    console.error('Error decrypting data:', error);
+    return null;
   }
 };

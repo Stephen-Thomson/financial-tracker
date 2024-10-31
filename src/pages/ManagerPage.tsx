@@ -44,7 +44,7 @@ const ManagerPage: React.FC<ManagerPageProps> = ({ onboarding }) => {
 
       setMembers([...members, response.data]);
       setNewMemberPublicKey('');
-      setNewMemberRole('Viewer');
+      setNewMemberRole('Staff');
     } catch (error) {
       console.error('Error adding member:', error);
       setErrorMessage('Failed to add member.');
