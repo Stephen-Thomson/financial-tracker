@@ -1,8 +1,9 @@
 // src/pages/TransactionPage.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { handleTransaction } from '../services/blockchain/blockchain';
+import { getPublicKey } from '@babbage/sdk-ts';
 
 const TransactionPage: React.FC = () => {
   // States for transaction fields
@@ -13,6 +14,16 @@ const TransactionPage: React.FC = () => {
   const [debitAmount, setDebitAmount] = useState<number>(0);
   const [creditAmount, setCreditAmount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [userPublicKey, setUserPublicKey] = useState<string>('');
+
+  // Fetch user's public key when the page loads
+  useEffect(() => {
+    const fetchPublicKey = async () => {
+      const publicKey = await getPublicKey({ reason: 'Transaction authorization', identityKey: true });
+      setUserPublicKey(publicKey || ''); // Set a default empty string if publicKey is undefined
+    };
+    fetchPublicKey();
+  }, []);
 
   // Handle transaction submission
   const handleSubmit = async () => {
@@ -28,6 +39,7 @@ const TransactionPage: React.FC = () => {
         description,
         debitAmount,
         creditAmount: 0,
+        userPublicKey, // Include the public key
       };
 
       const creditEntry = {
@@ -36,6 +48,7 @@ const TransactionPage: React.FC = () => {
         description,
         debitAmount: 0,
         creditAmount,
+        userPublicKey, // Include the public key
       };
 
       // Call handleTransaction for both entries

@@ -31,7 +31,7 @@ const initializeDatabase = async () => {
         id INT AUTO_INCREMENT PRIMARY KEY,
         public_key VARCHAR(255) UNIQUE NOT NULL,
         email VARCHAR(255) NOT NULL,
-        role ENUM('keyPerson', 'limitedUser', 'Manager', 'Accountant', 'Staff', 'Viewer', 'Deleted') NOT NULL,
+        role ENUM('keyPerson', 'Manager', 'Accountant', 'Staff', 'Deleted') NOT NULL,
         basket VARCHAR(50) DEFAULT 'user',
         txid VARCHAR(255), -- Blockchain Transaction ID
         output_script TEXT, -- Output Script for blockchain entry
@@ -131,13 +131,6 @@ export const createAccountTable = async (accountName: string, basket: string) =>
       CREATE TABLE IF NOT EXISTS ${tableName} (
         id INT AUTO_INCREMENT PRIMARY KEY,
         date DATE NOT NULL,
-        description TEXT NOT NULL,
-        debit DECIMAL(10, 2) DEFAULT 0.00,
-        credit DECIMAL(10, 2) DEFAULT 0.00,
-        running_total DECIMAL(10, 2) DEFAULT 0.00,
-        type_of_account ENUM('Asset', 'Liability', 'Income', 'Expense') NOT NULL,
-        edit_permission ENUM('Manager', 'Accountant', 'Staff') NOT NULL,
-        view_permission ENUM('Manager', 'Accountant', 'Staff', 'Viewer') NOT NULL,
         txid VARCHAR(255) NOT NULL,
         output_script TEXT NOT NULL,
         token_id VARCHAR(255),
@@ -160,13 +153,6 @@ export const createAccountTable = async (accountName: string, basket: string) =>
 export const insertAccountEntry = async (
   accountName: string,
   date: string,
-  description: string,
-  debit: number,
-  credit: number,
-  runningTotal: number,
-  typeOfAccount: 'Asset' | 'Liability' | 'Income' | 'Expense',
-  editPermission: 'Manager' | 'Accountant' | 'Staff',
-  viewPermission: 'Manager' | 'Accountant' | 'Staff' | 'Viewer',
   txid: string,
   outputScript: string,
   tokenId: string,
@@ -179,19 +165,12 @@ export const insertAccountEntry = async (
 
     const insertQuery = `
       INSERT INTO ${tableName} 
-      (date, description, debit, credit, running_total, type_of_account, basket, edit_permission, view_permission, txid, output_script, token_id, encrypted_data, encryption_metadata, metadata)
-      VALUES (?, ?, ?, ?, ?, ?, '${accountName}', ?, ?, ?, ?, ?, ?, ?, ?);
+      (date, txid, output_script, token_id, encrypted_data, encryption_metadata, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
     `;
 
     await pool.query(insertQuery, [
       date,
-      description,
-      debit,
-      credit,
-      runningTotal,
-      typeOfAccount,
-      editPermission,
-      viewPermission,
       txid,
       outputScript,
       tokenId,
@@ -207,6 +186,7 @@ export const insertAccountEntry = async (
   }
 };
 
+
 // Create General Journal Table
 export const createGeneralJournalTable = async () => {
   try {
@@ -214,12 +194,7 @@ export const createGeneralJournalTable = async () => {
       CREATE TABLE IF NOT EXISTS general_journal (
         id INT AUTO_INCREMENT PRIMARY KEY,
         date DATE NOT NULL,
-        description TEXT NOT NULL,
-        debit DECIMAL(10, 2) DEFAULT 0.00,
-        credit DECIMAL(10, 2) DEFAULT 0.00,
-        account_name VARCHAR(255) NOT NULL,
         basket VARCHAR(50) DEFAULT 'general_journal',
-        view_permission ENUM('Manager', 'Accountant', 'Staff', 'Viewer') NOT NULL,
         txid VARCHAR(255) NOT NULL,
         output_script TEXT NOT NULL,
         token_id VARCHAR(255),
@@ -255,7 +230,7 @@ export const viewAccountEntries = async (accountName: string) => {
     const tableName = `account_${accountName}`;
 
     const selectQuery = `
-      SELECT id, date, description, debit, credit, running_total, type_of_account, edit_permission, view_permission, txid, token_id, encrypted_data, encryption_metadata
+      SELECT id, date, type_of_account, txid, token_id, encrypted_data, encryption_metadata
       FROM ${tableName};
     `;
 
@@ -272,11 +247,6 @@ export const viewAccountEntries = async (accountName: string) => {
 // Insert an entry into the General Journal
 export const insertGeneralJournalEntry = async (
   date: string,
-  description: string,
-  debit: number,
-  credit: number,
-  accountName: string,
-  viewPermission: 'Manager' | 'Accountant' | 'Staff' | 'Viewer',
   txid: string,
   outputScript: string,
   tokenId: string,
@@ -287,18 +257,12 @@ export const insertGeneralJournalEntry = async (
   try {
     const insertQuery = `
       INSERT INTO general_journal 
-      (date, description, debit, credit, account_name, basket, view_permission, txid, output_script, token_id, encrypted_data, encryption_metadata, metadata)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      (date, basket, txid, output_script, token_id, encrypted_data, encryption_metadata, metadata)
+      VALUES (?, 'general_journal', ?, ?, ?, ?, ?, ?);
     `;
 
     await pool.query(insertQuery, [
       date,
-      description,
-      debit,
-      credit,
-      accountName,
-      accountName,  // Assuming basket is set based on account name for journal entries
-      viewPermission,
       txid,
       outputScript,
       tokenId,
@@ -314,6 +278,7 @@ export const insertGeneralJournalEntry = async (
   }
 };
 
+
 export const getUserEmailByPublicKey = async (publicKey: string): Promise<string | null> => {
   const [rows] = await pool.query<RowDataPacket[]>( // Specify the query result type
     'SELECT email FROM users WHERE public_key = ?', 
@@ -321,6 +286,21 @@ export const getUserEmailByPublicKey = async (publicKey: string): Promise<string
   );
   
   return rows.length > 0 ? (rows[0] as RowDataPacket).email : null;
+};
+
+// Function to get the last entry’s running total and basket
+export const getLastEntry = async (accountName: string) => {
+  const tableName = `account_${accountName}`;
+
+  const query = `
+    SELECT running_total, basket
+    FROM ${tableName}
+    ORDER BY id DESC
+    LIMIT 1;
+  `;
+
+  const [rows]: [RowDataPacket[], any] = await pool.query(query);
+  return rows.length > 0 ? { runningTotal: rows[0].running_total, basket: rows[0].basket } : null;
 };
 
 

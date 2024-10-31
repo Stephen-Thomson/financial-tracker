@@ -173,13 +173,18 @@ type TransactionData = {
 };
 
 type TransactionEntry = {
-  accountName: string;
   date: string;
   description: string;
-  debitAmount: number;
-  creditAmount: number;
+  debit: {
+    accountName: string;
+    amount: number;
+  };
+  credit: {
+    accountName: string;
+    amount: number;
+  };
+  userPublicKey: string;
 };
-
 
 // Validate that debit and credit amounts match for double-entry accounting
 const validateTransaction = (debitAmount: number, creditAmount: number) => {
@@ -189,7 +194,7 @@ const validateTransaction = (debitAmount: number, creditAmount: number) => {
 };
 
 // Adjusted handleTransaction to take only one entry at a time
-export const handleTransaction = async (transaction: TransactionEntry) => {
+export const handleTransaction = async (transaction: TransactionData) => {
   try {
     // Validate the single entry's debit and credit amounts
     validateTransaction(transaction.debitAmount, transaction.creditAmount);
@@ -205,7 +210,6 @@ export const handleTransaction = async (transaction: TransactionEntry) => {
     throw error;
   }
 };
-
 
 
 // Function to encrypt data, including public key and email
@@ -272,23 +276,34 @@ const postTransactionEntry = async (data: TransactionData) => {
   try {
     const runningTotal = await calculateRunningTotal(data.accountName, data.debitAmount, data.creditAmount);
 
+    // Step 1: Encrypt relevant data fields
     const encryptedDescription = await encryptData(data.description);
+    const encryptedDebit = await encryptData(data.debitAmount.toString());
+    const encryptedCredit = await encryptData(data.creditAmount.toString());
+    const encryptedRunningTotal = await encryptData(runningTotal.toString());
     const encryptedPublicKey = await encryptData(data.userPublicKey);
+
+    // Combine all encrypted fields into a single blob
+    const encryptedDataBlob = JSON.stringify({
+      description: encryptedDescription,
+      debit: encryptedDebit,
+      credit: encryptedCredit,
+      runningTotal: encryptedRunningTotal,
+      publicKey: encryptedPublicKey
+    });
 
     // Generate the pushdrop token for the transaction entry
     const outputScript = await pushdrop.create({
       fields: [
         Buffer.from(data.date),
-        Buffer.from(encryptedDescription),
-        Buffer.from(data.debitAmount.toString()),
-        Buffer.from(data.creditAmount.toString()),
+        Buffer.from(encryptedDataBlob),
         Buffer.from(data.accountName),
       ],
       protocolID: 'financial-tracker-accountentry',
       keyID: encryptedPublicKey,
     });
 
-    // Create the blockchain transaction for the entry
+    // Blockchain transaction for the entry
     const actionResult = await createAction({
       outputs: [{ satoshis: 1, script: outputScript, description: `Transaction entry for ${data.accountName}` }],
       description: 'Transaction entry transaction',
@@ -298,36 +313,35 @@ const postTransactionEntry = async (data: TransactionData) => {
     await axios.post('/api/accounts/entry', {
       accountName: data.accountName,
       date: data.date,
-      description: encryptedDescription,
-      debit: data.debitAmount,
-      credit: data.creditAmount,
-      runningTotal,
-      typeOfAccount: data.accountName,
-      editPermission: 'Manager',          // Set the edit permission level as required
-      viewPermission: 'Viewer',
       txid: actionResult.txid,
       outputScript,
-      tokenId: actionResult.txid,         // Assign a unique token identifier, possibly the txid or generated ID
-      encryptedData: {
-        description: encryptedDescription,
-        publicKey: encryptedPublicKey
-      },                                  // Structure encrypted data as needed
+      tokenId: actionResult.txid,
+      encryptedData: encryptedDataBlob, // Store as a single blob
       encryptionMetadata: { 
-        keyID: 'default-key-id',          // Include metadata for encryption (if available)
-        protocolID: 'financial-tracker-accountentry'
+        keyID: 'default-key-id',
+        protocolID: 'financial-tracker-accountentry',
       },
       metadata: { rawTx: actionResult.rawTx },
     });
 
     // Enter entry into General Journal
     // Generate the pushdrop token for the journal entry
+    const encryptedAccountName = await encryptData(data.accountName);
+
+    // Combine all encrypted fields into a single blob
+    const encryptedGJDataBlob = JSON.stringify({
+      description: encryptedDescription,
+      debit: encryptedDebit,
+      credit: encryptedCredit,
+      publicKey: encryptedPublicKey,
+      accountName: encryptedAccountName,
+    });
+
+    // Generate the pushdrop token for the journal entry
     const journalOutputScript = await pushdrop.create({
       fields: [
         Buffer.from(data.date),
-        Buffer.from(encryptedDescription),
-        Buffer.from(data.debitAmount.toString()),
-        Buffer.from(data.creditAmount.toString()),
-        Buffer.from(data.accountName),
+        Buffer.from(encryptedGJDataBlob),
       ],
       protocolID: 'financial-tracker-journalentry',
       keyID: encryptedPublicKey,
@@ -342,18 +356,10 @@ const postTransactionEntry = async (data: TransactionData) => {
     // Store the journal entry in the backend
     await axios.post('/api/general-journal/entry', {
       date: data.date,
-      description: encryptedDescription,
-      debit: data.debitAmount,
-      credit: data.creditAmount,
-      accountName: data.accountName,
-      viewPermission: 'Manager',
       txid: journalActionResult.txid,
       outputScript: journalOutputScript,
-      tokenId: journalActionResult.txid,  // Using the txid as the token ID
-      encryptedData: {
-        description: encryptedDescription,
-        publicKey: encryptedPublicKey,
-      },
+      tokenId: journalActionResult.txid, // Use the txid as the token ID
+      encryptedData: encryptedGJDataBlob, // Store as a single encrypted blob
       encryptionMetadata: { 
         keyID: 'default-key-id',
         protocolID: 'financial-tracker-journalentry',
@@ -384,16 +390,16 @@ export const getUserEmail = async (publicKey: string): Promise<string | null> =>
 // Helper function to calculate and retrieve the running total for the account entry
 const calculateRunningTotal = async (accountName: string, debitAmount: number, creditAmount: number): Promise<number> => {
   try {
-    // Step 1: Query backend for the account type and the last running total
-    const response = await axios.get(`/api/accounts/${accountName}/last-entry`);
-    const { lastTotal, accountType } = response.data;
+    // Step 1: Query backend for the basket and last running total of the account
+    const response = await axios.get(`/api/accounts/last-entry/${accountName}`);
+    const { runningTotal, basket } = response.data;
 
-    // Step 2: Calculate the running total based on account type and amounts
+    // Step 2: Calculate the new running total based on basket type and amounts
     let newTotal: number;
-    if (accountType === 'Asset' || accountType === 'Expense') {
-      newTotal = lastTotal + debitAmount - creditAmount;
+    if (basket === 'asset' || basket === 'expense') {
+      newTotal = runningTotal + debitAmount - creditAmount;
     } else {
-      newTotal = lastTotal - debitAmount + creditAmount;
+      newTotal = runningTotal - debitAmount + creditAmount;
     }
 
     return newTotal;

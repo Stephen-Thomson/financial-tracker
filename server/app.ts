@@ -4,7 +4,7 @@ import {
   getUsers, addUser, removeUser, getUserRole,
   createAccountTable, insertAccountEntry, viewAccountEntries,
   insertGeneralJournalEntry, createGeneralJournalTable,
-  getUserEmailByPublicKey
+  getUserEmailByPublicKey, getLastEntry
 } from './db';
 
 const app = express();
@@ -83,13 +83,6 @@ app.post('/api/accounts/entry', async (req, res) => {
   const {
     accountName,
     date,
-    description,
-    debit,
-    credit,
-    runningTotal,
-    typeOfAccount,
-    editPermission,
-    viewPermission,
     txid,
     outputScript,
     tokenId,
@@ -102,13 +95,6 @@ app.post('/api/accounts/entry', async (req, res) => {
     await insertAccountEntry(
       accountName,
       date,
-      description,
-      debit,
-      credit,
-      runningTotal,
-      typeOfAccount,
-      editPermission,
-      viewPermission,
       txid,
       outputScript,
       tokenId,
@@ -122,6 +108,7 @@ app.post('/api/accounts/entry', async (req, res) => {
     res.status(500).json({ message: 'Error inserting entry into account' });
   }
 });
+
 
 // View all entries from an account table
 app.get('/api/accounts/:accountName', async (req, res) => {
@@ -150,11 +137,6 @@ app.post('/api/general-journal/create', async (req, res) => {
 app.post('/api/general-journal/entry', async (req, res) => {
   const {
     date,
-    description,
-    debit,
-    credit,
-    accountName,
-    viewPermission,
     txid,
     outputScript,
     tokenId,
@@ -166,11 +148,6 @@ app.post('/api/general-journal/entry', async (req, res) => {
   try {
     await insertGeneralJournalEntry(
       date,
-      description,
-      debit,
-      credit,
-      accountName,
-      viewPermission,
       txid,
       outputScript,
       tokenId,
@@ -184,6 +161,7 @@ app.post('/api/general-journal/entry', async (req, res) => {
     res.status(500).json({ message: 'Error inserting entry into General Journal' });
   }
 });
+
 
 // In your Express backend file
 app.get('/api/users/email/:publicKey', async (req, res) => {
@@ -204,3 +182,21 @@ app.get('/api/users/email/:publicKey', async (req, res) => {
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
+// Get the last entry’s running total and basket for an account
+app.get('/api/accounts/last-entry/:accountName', async (req, res) => {
+  const { accountName } = req.params;
+
+  try {
+    const lastEntry = await getLastEntry(accountName);
+    if (lastEntry) {
+      res.json(lastEntry);
+    } else {
+      res.status(404).json({ message: `No entries found for account ${accountName}` });
+    }
+  } catch (error) {
+    console.error(`Error fetching last entry for account ${accountName}:`, error);
+    res.status(500).json({ message: 'Error retrieving last entry' });
+  }
+});
+
