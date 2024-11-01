@@ -18,7 +18,7 @@ const ManagerPage: React.FC<ManagerPageProps> = ({ onboarding }) => {
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        const response = await axios.get('/api/members'); // Fetch members
+        const response = await axios.get('/api/members');
         setMembers(response.data.members);
       } catch (error) {
         console.error('Error fetching members:', error);

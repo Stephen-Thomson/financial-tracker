@@ -72,7 +72,7 @@ app.get('/api/users/role/:publicKey', async (req, res) => {
 app.post('/api/accounts/create', async (req, res) => {
   const { accountName, basket } = req.body; // Destructure basket from the request body
   try {
-    await createAccountTable(accountName, basket); // Pass basket to the function
+    await createAccountTable(accountName, basket);
     res.json({ message: `Account table ${accountName} created successfully with basket ${basket}` });
   } catch (error) {
     console.error('Error creating account table:', error);
@@ -166,7 +166,7 @@ app.post('/api/general-journal/entry', async (req, res) => {
 });
 
 
-// In your Express backend file
+// Get the email of a user based on public key
 app.get('/api/users/email/:publicKey', async (req, res) => {
   const { publicKey } = req.params;
   try {

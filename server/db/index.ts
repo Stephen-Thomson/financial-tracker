@@ -43,6 +43,7 @@ const initializeDatabase = async () => {
       );
     `);
 
+    // Create the Messages table for storing messages between users
     await connection.query(`
       CREATE TABLE messages (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -57,6 +58,7 @@ const initializeDatabase = async () => {
       );
     `);
   
+    // Create Payment Tokens table for tracking payment transactions
     await connection.query(`
       CREATE TABLE IF NOT EXISTS payment_tokens (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -153,6 +155,7 @@ export const getUserRole = async (publicKey: string) => {
   return rows[0].role;
 };
 
+// Create a new account table for a user
 export const createAccountTable = async (accountName: string, basket: string) => {
   try {
     const tableName = `account_${accountName}`;
@@ -180,6 +183,7 @@ export const createAccountTable = async (accountName: string, basket: string) =>
   }
 };
 
+// Insert an entry into an account table
 export const insertAccountEntry = async (
   accountName: string,
   date: string,
@@ -255,6 +259,7 @@ export const checkUserExists = async (publicKey: string): Promise<boolean> => {
   return rows[0].count > 0;
 };
 
+// Get account entries for a user
 export const viewAccountEntries = async (accountName: string) => {
   try {
     const tableName = `account_${accountName}`;
@@ -308,7 +313,7 @@ export const insertGeneralJournalEntry = async (
   }
 };
 
-
+// Get user email by public key
 export const getUserEmailByPublicKey = async (publicKey: string): Promise<string | null> => {
   const [rows] = await pool.query<RowDataPacket[]>( // Specify the query result type
     'SELECT email FROM users WHERE public_key = ?', 

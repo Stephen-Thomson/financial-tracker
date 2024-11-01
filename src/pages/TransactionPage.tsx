@@ -1,4 +1,3 @@
-// src/pages/TransactionPage.tsx
 import React, { useState, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -6,7 +5,6 @@ import { handleTransaction } from '../services/blockchain/blockchain';
 import { getPublicKey } from '@babbage/sdk-ts';
 
 const TransactionPage: React.FC = () => {
-  // States for transaction fields
   const [date, setDate] = useState<Date>(new Date());
   const [accountDebit, setAccountDebit] = useState<string>('');
   const [accountCredit, setAccountCredit] = useState<string>('');
@@ -39,7 +37,7 @@ const TransactionPage: React.FC = () => {
         description,
         debitAmount,
         creditAmount: 0,
-        userPublicKey, // Include the public key
+        userPublicKey,
       };
 
       const creditEntry = {
@@ -48,7 +46,7 @@ const TransactionPage: React.FC = () => {
         description,
         debitAmount: 0,
         creditAmount,
-        userPublicKey, // Include the public key
+        userPublicKey,
       };
 
       // Call handleTransaction for both entries

@@ -28,8 +28,8 @@ const CreateLiability: React.FC = () => {
         accountName,
         date: date.toISOString().split('T')[0],
         description: 'Beginning balance',
-        debitAmount: 0,                         // Debit is 0 for liabilities
-        creditAmount: beginningBalance,          // Credit holds the beginning balance
+        debitAmount: 0,
+        creditAmount: beginningBalance,
         userPublicKey,
       };
   

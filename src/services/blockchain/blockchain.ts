@@ -51,10 +51,10 @@ export const storeUserOnBlockchain = async (publicKey: string, email: string, ro
     const userPublicKey = await getPublicKey({ reason: 'User addition authorization', identityKey: true });
     const outputScript = await pushdrop.create({
       fields: [
-        Buffer.from(new Date().toISOString()), // Timestamp
-        Buffer.from(encryptedEmail),            // Encrypted email
-        Buffer.from(encryptedPublicKey),             // Encrypted public key
-        Buffer.from('User Addition'),           // Purpose of action
+        Buffer.from(new Date().toISOString()),
+        Buffer.from(encryptedEmail),
+        Buffer.from(encryptedPublicKey),
+        Buffer.from('User Addition'),
       ],
       protocolID: 'user-management',
       keyID: userPublicKey || 'default-key-id',
@@ -104,7 +104,7 @@ export const removeUserFromBlockchain = async (email: string) => {
       protocolID: 'user-management',
       keyID: userPublicKey || 'default-key-id',
       prevTxId: txid,
-      outputIndex: 0, // assuming the index of the original user addition transaction is 0
+      outputIndex: 0,
       lockingScript,
       outputAmount: amount,
     });
@@ -234,11 +234,11 @@ export const addKeyUser = async (publicKey: string, email: string) => {
     // Generate the token for the user data
     const outputScript = await pushdrop.create({
       fields: [
-        Buffer.from(new Date().toISOString()), // Date of entry
-        Buffer.from(encryptedPublicKey),        // Encrypted public key
-        Buffer.from(encryptedEmail),            // Encrypted email
-        Buffer.from('keyPerson'),               // Role
-        Buffer.from('Key User Creation'),       // Description of action
+        Buffer.from(new Date().toISOString()),
+        Buffer.from(encryptedPublicKey),
+        Buffer.from(encryptedEmail),
+        Buffer.from('keyPerson'),
+        Buffer.from('Key User Creation'),
       ],
       protocolID: 'user-management',
       keyID: publicKey || 'default-key-id',
@@ -257,7 +257,7 @@ export const addKeyUser = async (publicKey: string, email: string) => {
       role: 'keyPerson',
       txid: actionResult.txid,
       outputScript,
-      tokenId: actionResult.txid, // Using the txid as a token identifier
+      tokenId: actionResult.txid,
       encryptedData: {
         publicKey: encryptedPublicKey,
         email: encryptedEmail,
@@ -317,7 +317,7 @@ const postTransactionEntry = async (data: TransactionData) => {
       txid: actionResult.txid,
       outputScript,
       tokenId: actionResult.txid,
-      encryptedData: encryptedDataBlob, // Store as a single blob
+      encryptedData: encryptedDataBlob,
       encryptionMetadata: { 
         keyID: 'default-key-id',
         protocolID: 'financial-tracker-accountentry',
@@ -359,8 +359,8 @@ const postTransactionEntry = async (data: TransactionData) => {
       date: data.date,
       txid: journalActionResult.txid,
       outputScript: journalOutputScript,
-      tokenId: journalActionResult.txid, // Use the txid as the token ID
-      encryptedData: encryptedGJDataBlob, // Store as a single encrypted blob
+      tokenId: journalActionResult.txid,
+      encryptedData: encryptedGJDataBlob,
       encryptionMetadata: { 
         keyID: 'default-key-id',
         protocolID: 'financial-tracker-journalentry',
@@ -410,32 +410,3 @@ const calculateRunningTotal = async (accountName: string, debitAmount: number, c
   }
 };
 
-/**
- * Decrypts an encrypted string using a private key.
- * 
- * @param encryptedData - The encrypted string to decrypt
- * @param privateKey - The user's private key for decryption
- * @returns The decrypted string or an error if decryption fails
- */
-export const decryptData = (encryptedData: string, privateKey: string): string | null => {
-  try {
-    // Convert encrypted data and private key to buffers
-    const encryptedBuffer = Buffer.from(encryptedData, 'base64');
-    const keyBuffer = Buffer.from(privateKey, 'base64');
-    
-    // Decryption setup (assumes RSA encryption, adjust as needed)
-    const decryptedBuffer = crypto.privateDecrypt(
-      {
-        key: keyBuffer.toString(),
-        padding: crypto.constants.RSA_PKCS1_PADDING,
-      },
-      encryptedBuffer
-    );
-
-    // Return decrypted text
-    return decryptedBuffer.toString('utf-8');
-  } catch (error) {
-    console.error('Error decrypting data:', error);
-    return null;
-  }
-};
