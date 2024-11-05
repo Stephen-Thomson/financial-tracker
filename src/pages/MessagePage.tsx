@@ -93,7 +93,7 @@ const MessagePage: React.FC = () => {
         await tokenator.listMessages({ messageBox: 'payment_requests' });
   
       if (inboxMessages.length > 0) {
-        // Log messages to console as in the example
+        // Log messages to console for debugging
         inboxMessages.forEach((message) => {
           console.log('Message ID:', message.messageId);
           console.log('Message Content:', message.body);
@@ -166,7 +166,7 @@ const MessagePage: React.FC = () => {
     protocolKeyID: 1,
     protocolBasketName: 'paymentRequests',
     protocolMessageBox: 'payment_requests_inbox',
-    protocolAddress: 'YOUR_UNIQUE_PROTOCOL_ADDRESS' // Replace with actual address as needed
+    protocolAddress: 'UNIQUE_PROTOCOL_ADDRESS' // Replace with actual address as needed
   });
 
   const handleApproveRequest = async (recipientPublicKey: string, amount: number, purpose: string) => {

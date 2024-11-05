@@ -75,6 +75,16 @@ const initializeDatabase = async () => {
       );
     `);
 
+    // Create accounts table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        basket ENUM('asset', 'income', 'expense', 'liability') NOT NULL DEFAULT 'asset',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log('Database and tables initialized successfully');
     connection.end();
   } catch (error) {
@@ -175,13 +185,24 @@ export const createAccountTable = async (accountName: string, basket: string) =>
       );
     `;
 
+    // Execute the query to create the account-specific table
     await pool.query(createTableQuery);
     console.log(`Table ${tableName} created successfully with basket '${basket}'`);
+
+    // Insert the account details into the `accounts` table
+    const insertAccountQuery = `
+      INSERT INTO accounts (name, basket)
+      VALUES (?, ?)
+    `;
+
+    await pool.query(insertAccountQuery, [accountName, basket]);
+    console.log(`Account ${accountName} added to accounts table with basket '${basket}'`);
   } catch (error) {
     console.error(`Error creating table ${accountName}:`, error);
     throw error;
   }
 };
+
 
 // Insert an entry into an account table
 export const insertAccountEntry = async (
@@ -450,6 +471,42 @@ export const getPaymentTokenByTxid = async (txid: string) => {
     return rows.length > 0 ? rows[0] : null;
   } catch (error) {
     console.error('Error retrieving payment token by txid:', error);
+    throw error;
+  }
+};
+
+// Retrieve a list of all account tables (assumes each account is created in the database)
+export const getAccounts = async () => {
+  try {
+    const [rows] = await pool.query('SELECT id, name FROM accounts'); // Assuming an `accounts` table with account info
+    return rows;
+  } catch (error) {
+    console.error('Error retrieving accounts:', error);
+    throw error;
+  }
+};
+
+// Retrieve entries for a specific account
+export const getAccountEntries = async (accountName: string) => {
+  try {
+    const tableName = `account_${accountName}`;
+    const query = `SELECT date, encrypted_data, encryption_metadata FROM ${tableName}`;
+    const [rows] = await pool.query(query);
+    return rows;
+  } catch (error) {
+    console.error(`Error fetching entries from account ${accountName}:`, error);
+    throw error;
+  }
+};
+
+// Retrieve all entries from the General Journal
+export const getGeneralJournalEntries = async () => {
+  try {
+    const query = `SELECT date, encrypted_data, encryption_metadata FROM general_journal`;
+    const [rows] = await pool.query(query);
+    return rows;
+  } catch (error) {
+    console.error('Error fetching general journal entries:', error);
     throw error;
   }
 };

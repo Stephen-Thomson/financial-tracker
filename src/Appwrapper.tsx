@@ -4,7 +4,6 @@ import { fetchUserRoleFromBlockchain } from './services/blockchain/blockchain';
 
 // Import pages/components
 import LoginPage from './pages/LoginPage';
-import AdjustableBudgetPage from './pages/AdjustableBudgetPage';
 import BudgetPage from './pages/BudgetPage';
 import TransactionPage from './pages/TransactionPage';
 import GeneralJournal from './components/GeneralJournal';
@@ -19,9 +18,10 @@ import OnboardingPage from './pages/OnboardingPage';
 import Dashboard from './pages/Dashboard';
 import MessagePage from './pages/MessagePage';
 import UHRPPage from './pages/UHRPPage';
-import PaymentPage from './pages/PaymentPage';
-import ViewAccountPage from './pages/ViewAccountPage'; // New page
-import ViewGeneralJournalPage from './pages/ViewGeneralJournalPage'; // New page
+import ViewAccountPage from './pages/ViewAccountPage';
+import ViewGeneralJournalPage from './pages/ViewGeneralJournalPage';
+import UploadInvoicesPage from './pages/UploadInvoicesPage';
+import DownloadInvoicesPage from './pages/DownloadInvoicesPage';
 
 const AppWrapper: React.FC = () => {
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
@@ -78,7 +78,7 @@ const AppWrapper: React.FC = () => {
           <Link to="/dashboard">Dashboard</Link>
           {['keyPerson', 'Manager', 'Accountant'].includes(userRole!) && (
             <>
-              <Link to="/adjustableBudget">Adjustable Budget</Link>
+
               <Link to="/budget">Budget</Link>
               <Link to="/create-accounts">Create Accounts</Link>
               {userRole === 'keyPerson' && <Link to="/manager">Manage Team</Link>}
@@ -86,6 +86,7 @@ const AppWrapper: React.FC = () => {
               <Link to="/generalJournal">General Journal</Link>
               <Link to="/viewAccount">View Accounts</Link>
               <Link to="/viewGeneralJournal">View General Journal</Link>
+              <Link to="/downloadInvoices">Download Invoices</Link>
             </>
           )}
           {['keyPerson', 'Manager', 'Accountant', 'Staff'].includes(userRole!) && (
@@ -93,7 +94,7 @@ const AppWrapper: React.FC = () => {
               <Link to="/totals">Totals</Link>
               <Link to="/message">Messages</Link>
               <Link to="/uhrp">UHRP Documents</Link>
-              <Link to="/payment">Payments</Link>
+              <Link to="/uploadInvoices">Upload Invoices</Link>
             </>
           )}
         </nav>
@@ -107,7 +108,6 @@ const AppWrapper: React.FC = () => {
             <Route path="/onboarding" element={<OnboardingPage publicKey={userPublicKey} email={userEmail} />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/budget" element={<BudgetPage />} />
-            <Route path="/adjustableBudget" element={<AdjustableBudgetPage />} />
             <Route path="/transaction" element={<TransactionPage />} />
             <Route path="/generalJournal" element={<GeneralJournal />} />
             <Route path="/createExpense" element={<CreateExpense />} />
@@ -119,9 +119,10 @@ const AppWrapper: React.FC = () => {
             <Route path="/totals" element={<Totals />} />
             <Route path="/message" element={<MessagePage />} />
             <Route path="/uhrp" element={<UHRPPage />} />
-            <Route path="/payment" element={<PaymentPage />} />
             <Route path="/viewAccount" element={<ViewAccountPage />} />
             <Route path="/viewGeneralJournal" element={<ViewGeneralJournalPage />} />
+            <Route path="/uploadInvoices" element={<UploadInvoicesPage />} />
+            <Route path="/downloadInvoices" element={<DownloadInvoicesPage />} />
           </>
         )}
       </Routes>

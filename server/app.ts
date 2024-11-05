@@ -7,7 +7,7 @@ import {
   getUserEmailByPublicKey, getLastEntry,
   addMessage, getMessagesForUser, updateMessageStatus,
   addPaymentToken, getPaymentTokensByStatus, updatePaymentTokenStatus,
-  getPaymentTokenByTxid
+  getPaymentTokenByTxid,getAccounts, getAccountEntries, getGeneralJournalEntries
 } from './db';
 
 const app = express();
@@ -291,5 +291,41 @@ app.get('/api/payment-tokens/:txid', async (req, res) => {
   } catch (error) {
     console.error('Error retrieving payment token by txid:', error);
     res.status(500).json({ message: 'Error retrieving payment token' });
+  }
+});
+
+// Get all accounts
+app.get('/api/accounts', async (req, res) => {
+  try {
+    const accounts = await getAccounts();
+    res.json(accounts);
+  } catch (error) {
+    console.error('Error fetching accounts:', error);
+    res.status(500).json({ message: 'Error fetching accounts' });
+  }
+});
+
+
+// Get all entries for a specific account by account ID
+app.get('/api/accounts/:accountId/entries', async (req, res) => {
+  const { accountId } = req.params;
+  try {
+    const entries = await getAccountEntries(accountId);
+    res.json(entries);
+  } catch (error) {
+    console.error(`Error fetching entries for account ${accountId}:`, error);
+    res.status(500).json({ message: 'Error fetching account entries' });
+  }
+});
+
+
+// Get all entries in the General Journal
+app.get('/api/general-journal', async (req, res) => {
+  try {
+    const journalEntries = await getGeneralJournalEntries();
+    res.json(journalEntries);
+  } catch (error) {
+    console.error('Error fetching general journal entries:', error);
+    res.status(500).json({ message: 'Error fetching general journal entries' });
   }
 });
