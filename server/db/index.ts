@@ -344,19 +344,19 @@ export const getUserEmailByPublicKey = async (publicKey: string): Promise<string
   return rows.length > 0 ? (rows[0] as RowDataPacket).email : null;
 };
 
-// Function to get the last entry’s running total and basket
+// Function to get the last entry’s encrypted data blob and basket for an account
 export const getLastEntry = async (accountName: string) => {
   const tableName = `account_${accountName}`;
 
   const query = `
-    SELECT running_total, basket
+    SELECT encrypted_data, basket
     FROM ${tableName}
     ORDER BY id DESC
     LIMIT 1;
   `;
 
   const [rows]: [RowDataPacket[], any] = await pool.query(query);
-  return rows.length > 0 ? { runningTotal: rows[0].running_total, basket: rows[0].basket } : null;
+  return rows.length > 0 ? { encryptedData: rows[0].encrypted_data, basket: rows[0].basket } : null;
 };
 
 // Add a new message
@@ -475,11 +475,10 @@ export const getPaymentTokenByTxid = async (txid: string) => {
   }
 };
 
-// Retrieve a list of all account tables (assumes each account is created in the database)
+// Retrieve a list of all account tables
 export const getAccounts = async () => {
   try {
-    const [rows] = await pool.query('SELECT id, name FROM accounts'); // Assuming an `accounts` table with account info
-    return rows;
+    const [rows] = await pool.query('SELECT id, name, basket FROM accounts');
   } catch (error) {
     console.error('Error retrieving accounts:', error);
     throw error;
@@ -509,6 +508,20 @@ export const getGeneralJournalEntries = async () => {
     console.error('Error fetching general journal entries:', error);
     throw error;
   }
+};
+
+// Function to get distinct months from an account's entries
+export const getDistinctMonthsForAccount = async (accountName: string) => {
+  const tableName = `account_${accountName}`;
+
+  const query = `
+    SELECT DISTINCT DATE_FORMAT(date, '%Y-%m') as month
+    FROM ${tableName}
+    ORDER BY month;
+  `;
+
+  const [rows]: [RowDataPacket[], any] = await pool.query(query);
+  return rows.map(row => row.month); // Return an array of unique 'YYYY-MM' formatted strings
 };
 
 // Call the function to initialize the database when the program starts

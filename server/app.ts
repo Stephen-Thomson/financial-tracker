@@ -7,7 +7,8 @@ import {
   getUserEmailByPublicKey, getLastEntry,
   addMessage, getMessagesForUser, updateMessageStatus,
   addPaymentToken, getPaymentTokensByStatus, updatePaymentTokenStatus,
-  getPaymentTokenByTxid,getAccounts, getAccountEntries, getGeneralJournalEntries
+  getPaymentTokenByTxid, getAccounts, getAccountEntries, getGeneralJournalEntries,
+  getDistinctMonthsForAccount
 } from './db';
 
 const app = express();
@@ -327,5 +328,17 @@ app.get('/api/general-journal', async (req, res) => {
   } catch (error) {
     console.error('Error fetching general journal entries:', error);
     res.status(500).json({ message: 'Error fetching general journal entries' });
+  }
+});
+
+// Get distinct months with entries for a specific account
+app.get('/api/accounts/:accountName/distinct-months', async (req, res) => {
+  const { accountName } = req.params;
+  try {
+    const distinctMonths = await getDistinctMonthsForAccount(accountName);
+    res.json(distinctMonths);
+  } catch (error) {
+    console.error(`Error fetching distinct months for account ${accountName}:`, error);
+    res.status(500).json({ message: 'Error retrieving distinct months' });
   }
 });
