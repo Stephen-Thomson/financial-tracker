@@ -2,9 +2,11 @@ import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { Button, LinearProgress, Grid, Select, MenuItem, TextField, Typography, FormControl, InputLabel } from '@mui/material';
 import { CloudUpload } from '@mui/icons-material';
 import { publishFile } from 'nanostore-publisher';
+import constants from '../utils/constants'; // Import the constants
 
 const UploadInvoicesPage: React.FC = () => {
-  const [nanostoreURL, setNanostoreURL] = useState<string>('https://staging-nanostore.babbage.systems');
+  // Set nanostoreURL from constants
+  const [nanostoreURL, setNanostoreURL] = useState<string>(constants.nanostoreURL);
   const [hostingMinutes, setHostingMinutes] = useState<number>(180); // Default to 3 hours
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);

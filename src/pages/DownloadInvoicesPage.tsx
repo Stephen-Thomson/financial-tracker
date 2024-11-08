@@ -17,13 +17,15 @@ import {
 } from '@mui/material';
 import { CloudDownload } from '@mui/icons-material';
 import { toast } from 'react-toastify';
-import { download } from 'nanoseek'; // Assuming you have nanoseek installed for UHRP download
+import { download } from 'nanoseek';
+import constants from '../utils/constants'; // Import the constants
 
 interface DownloadInvoicesPageProps {}
 
 const DownloadInvoicesPage: React.FC<DownloadInvoicesPageProps> = () => {
-  const [overlayServiceURL, setOverlayServiceURL] = useState<string>('');
-  const [overlayServiceURLs, setOverlayServiceURLs] = useState<string[]>(['https://staging-overlay.babbage.systems']);
+  // Initialize overlayServiceURLs and set the default overlayServiceURL from constants
+  const [overlayServiceURL, setOverlayServiceURL] = useState<string>(constants.confederacyURL);
+  const [overlayServiceURLs, setOverlayServiceURLs] = useState<string[]>(constants.confederacyURLs);
   const [downloadURL, setDownloadURL] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [downloadedFileURL, setDownloadedFileURL] = useState<string | null>(null);
@@ -31,6 +33,7 @@ const DownloadInvoicesPage: React.FC<DownloadInvoicesPageProps> = () => {
   const [openDialog, setOpenDialog] = useState<boolean>(false);
 
   useEffect(() => {
+    // Set initial overlay service URL to the first in the constants array if available
     if (overlayServiceURLs.length > 0) {
       setOverlayServiceURL(overlayServiceURLs[0]);
     }
@@ -40,7 +43,7 @@ const DownloadInvoicesPage: React.FC<DownloadInvoicesPageProps> = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      // Using nanoseek for downloading from UHRP
+      // Use nanoseek for downloading from UHRP
       const { mimeType, data } = await download({
         UHRPUrl: downloadURL.trim(),
         confederacyHost: overlayServiceURL.trim()
@@ -48,7 +51,7 @@ const DownloadInvoicesPage: React.FC<DownloadInvoicesPageProps> = () => {
 
       const blob = new Blob([data], { type: mimeType });
       const url = URL.createObjectURL(blob);
-      setDownloadedFileURL(url); // Set the downloaded file URL to view later
+      setDownloadedFileURL(url);
 
       toast.success('File downloaded successfully!');
     } catch (error) {

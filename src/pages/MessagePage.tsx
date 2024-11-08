@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Button, TextField, List, ListItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Select, FormControl, InputLabel, SelectChangeEvent } from '@mui/material';
-const Tokenator = require('@babbage/tokenator');
-const PushDropTokenator = require('pushdrop-tokenator');
+import { Button, TextField, List, ListItem, ListItemText, Dialog,
+  DialogTitle, DialogContent, DialogActions, MenuItem, Select,
+  FormControl, InputLabel, SelectChangeEvent } from '@mui/material';
 import axios from 'axios';
 import { getPublicKey } from '@babbage/sdk-ts';
+const Tokenator = require('@babbage/tokenator');
+const PushDropTokenator = require('pushdrop-tokenator');
 
 // Define the Message interface for managing message data
 interface Message {

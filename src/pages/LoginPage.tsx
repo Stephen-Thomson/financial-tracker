@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { isAuthenticated, waitForAuthentication, getPublicKey } from '@babbage/sdk-ts';
 import { useNavigate } from 'react-router-dom';
 import { fetchUserRoleFromBlockchain, addKeyUser, getUserEmail } from '../services/blockchain/blockchain';
-import axios from 'axios';
 
 const connectWallet = async () => {
   try {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Typography, Grid, Paper, 
   Box, Table, TableBody, TableCell, TableContainer, 
   TableHead, TableRow 
@@ -21,6 +21,7 @@ interface ProjectionData {
   remaining: number;
 }
 
+
 const BudgetPage: React.FC = () => {
   const [assets, setAssets] = useState<AccountInfo[]>([]);
   const [expenses, setExpenses] = useState<AccountInfo[]>([]);
@@ -30,7 +31,10 @@ const BudgetPage: React.FC = () => {
   const [totalExpenses, setTotalExpenses] = useState<number>(0);
   const [totalIncome, setTotalIncome] = useState<number>(0);
   const [totalLiabilities, setTotalLiabilities] = useState<number>(0);
+  const [totalStartingValue, setTotalStartingValue] = useState<number>(0);
+  const [totalRemainingValue, setTotalRemainingValue] = useState<number>(0);
   const [budgetProjections, setBudgetProjections] = useState<ProjectionData[]>([]);
+
 
   // Retrieve all accounts and separate them into respective categories
   const fetchAndCategorizeAccounts = async () => {
@@ -155,43 +159,48 @@ const BudgetPage: React.FC = () => {
     </Paper>
   );
 
-  // Function to calculate monthly projections
-  const calculateMonthlyProjections = (months: number) => {
-    // Initialize values for monthly calculations
-    let startingValue = totalAssets; // Starting value for the first month
-    let monthlyRemaining = startingValue;
-
-    const projections = [];
-
-    for (let i = 0; i < months; i++) {
-      // Calculate monthly expenses and income
-      const totalExpensesForMonth = totalExpenses;
-      const totalIncomeForMonth = totalIncome;
-
-      // Calculate remaining amount after expenses and income adjustments
-      monthlyRemaining = monthlyRemaining - totalExpensesForMonth + totalIncomeForMonth;
-
-      // Store the starting and remaining values for each month
-      projections.push({
-        month: i + 1,
-        startingValue: startingValue.toFixed(2),
-        totalExpenses: totalExpensesForMonth.toFixed(2),
-        totalIncome: totalIncomeForMonth.toFixed(2),
-        remaining: monthlyRemaining.toFixed(2),
-      });
-
-      // Update starting value for the next month
-      startingValue = monthlyRemaining;
-    }
-
-  };
+  const calculateMonthlyProjections = useCallback(
+    (months: number) => {
+      let startingValue = totalAssets;
+      let monthlyRemaining = startingValue;
+  
+      const projections: ProjectionData[] = [];
+  
+      for (let i = 0; i < months; i++) {
+        const totalExpensesForMonth = totalExpenses;
+        const totalIncomeForMonth = totalIncome;
+  
+        monthlyRemaining = monthlyRemaining - totalExpensesForMonth + totalIncomeForMonth;
+  
+        // Store the starting and remaining values for each month
+        projections.push({
+          month: i + 1,
+          startingValue: startingValue,
+          totalExpenses: totalExpensesForMonth,
+          totalIncome: totalIncomeForMonth,
+          remaining: monthlyRemaining,
+        });
+  
+        // Update starting value for the next month
+        startingValue = monthlyRemaining;
+      }
+  
+      // Update state with projections
+      setBudgetProjections(projections);
+      setTotalStartingValue(projections[0].startingValue);
+      setTotalRemainingValue(projections[months - 1].remaining);
+    },
+    [totalAssets, totalExpenses, totalIncome] // dependencies
+  );
+  
+  
 
   useEffect(() => {
     if (totalAssets && totalExpenses && totalIncome) {
-      calculateMonthlyProjections(12); // Set projections for 12 months
+      calculateMonthlyProjections(12);
     }
   }, [totalAssets, totalExpenses, totalIncome]);
-
+  
 
   return (
     <Grid container spacing={3}>

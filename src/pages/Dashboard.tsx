@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, Typography, Grid, Button } from '@mui/material';
 import { getPublicKey } from '@babbage/sdk-ts';
-import { useSelector } from 'react-redux';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 

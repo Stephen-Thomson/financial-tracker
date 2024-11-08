@@ -1,7 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { createAction, getPublicKey } from '@babbage/sdk-ts';
 import pushdrop from 'pushdrop';
-import crypto from 'crypto';
 
 type AllowedRoles = 'Manager' | 'Accountant' | 'Staff' | 'Viewer' | 'keyPerson' | 'limitedUser';
 
