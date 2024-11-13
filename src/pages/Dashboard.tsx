@@ -20,13 +20,13 @@ const Dashboard: React.FC = () => {
     const fetchUserData = async () => {
       try {
         const publicKey = await getPublicKey({ reason: 'User identification for Dashboard', identityKey: true });
-        const userResponse = await axios.get(`/api/users/role/${publicKey}`);
+        const userResponse = await axios.get(`http://localhost:5000/api/users/role/${publicKey}`);
         if (userResponse.status === 200) {
           setUser({ ...userResponse.data, publicKey });
         }
 
         // Fetch pending requests for the user
-        const requestsResponse = await axios.get(`/api/messages/pending/${publicKey}`);
+        const requestsResponse = await axios.get(`http://localhost:5000/api/messages/pending/${publicKey}`);
         if (requestsResponse.status === 200) {
           setPendingRequests(requestsResponse.data.pendingCount);
         }

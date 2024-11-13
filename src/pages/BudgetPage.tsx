@@ -39,7 +39,7 @@ const BudgetPage: React.FC = () => {
   // Retrieve all accounts and separate them into respective categories
   const fetchAndCategorizeAccounts = async () => {
     try {
-      const response = await axios.get('/api/accounts');
+      const response = await axios.get('http://localhost:5000/api/accounts');
       const accounts = response.data;
 
       // Categorize accounts by basket and initialize with 0 amount

@@ -43,7 +43,7 @@ const MessagePage: React.FC = () => {
         const publicKey = await getPublicKey({ reason: 'Retrieve Key for Messages', identityKey: true });
         setUserPublicKey(publicKey);
 
-        const response = await axios.get(`/api/users/role/${publicKey}`);
+        const response = await axios.get(`http://localhost:5000/api/users/role/${publicKey}`);
         if (response.status === 200) {
           setUserRole(response.data.role);
         } else {
@@ -61,7 +61,7 @@ const MessagePage: React.FC = () => {
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const response = await axios.get('/api/users');
+        const response = await axios.get('http://localhost:5000/api/users');
         setUsers(response.data);
       } catch (error) {
         console.error('Error loading users:', error);

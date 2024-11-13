@@ -18,7 +18,7 @@ const ManagerPage: React.FC<ManagerPageProps> = ({ onboarding }) => {
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        const response = await axios.get('/api/members');
+        const response = await axios.get('http://localhost:5000/api/members');
         setMembers(response.data.members);
       } catch (error) {
         console.error('Error fetching members:', error);
@@ -37,7 +37,7 @@ const ManagerPage: React.FC<ManagerPageProps> = ({ onboarding }) => {
         return;
       }
 
-      const response = await axios.post('/api/members', {
+      const response = await axios.post('http://localhost:5000/api/members', {
         publicKey: newMemberPublicKey,
         role: newMemberRole
       });
@@ -56,7 +56,7 @@ const ManagerPage: React.FC<ManagerPageProps> = ({ onboarding }) => {
     try {
       const memberToRemove = members[index];
 
-      await axios.delete(`/api/members/${memberToRemove.publicKey}`);
+      await axios.delete(`http://localhost:5000/api/members/${memberToRemove.publicKey}`);
 
       const updatedMembers = [...members];
       updatedMembers.splice(index, 1);

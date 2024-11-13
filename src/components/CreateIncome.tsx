@@ -4,7 +4,7 @@ import axios from 'axios';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { getPublicKey } from '@babbage/sdk-ts';
-import { handleTransaction } from '../services/blockchain/blockchain';
+import { handleInitialTransaction } from '../services/blockchain/blockchain';
 
 const CreateIncome: React.FC = () => {
   const [accountName, setAccountName] = useState<string>('');
@@ -19,8 +19,14 @@ const CreateIncome: React.FC = () => {
         identityKey: true,
       });
   
-      // Create the account in the backend first
-      await axios.post('/api/accounts/create', { accountName });
+      // Define account parameters
+      const accountData = {
+        accountName,
+        basket: 'income',
+      };
+
+      // Create account in backend
+      await axios.post('http://localhost:5000/api/accounts/create', accountData);
   
       // Prepare data for the initial transaction entry
       const transactionData = {
@@ -32,8 +38,8 @@ const CreateIncome: React.FC = () => {
         userPublicKey,
       };
   
-      // Call handleTransaction to manage blockchain and backend entry
-      await handleTransaction(transactionData);
+      // Call handleInitialTransaction to manage blockchain and backend entry
+      await handleInitialTransaction(transactionData);
 
       // Navigate back to accounts page
       navigate('/create-accounts');

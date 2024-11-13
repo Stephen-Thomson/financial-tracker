@@ -11,11 +11,8 @@ const connectWallet = async () => {
       await waitForAuthentication();
     }
 
-    const publicKey = await getPublicKey({
-      reason: 'User login confirmation',
-      identityKey: true,
-    });
-
+    const publicKey = await getPublicKey({ identityKey: true })
+    
     return publicKey;
   } catch (error) {
     console.error('Error connecting to wallet:', error);

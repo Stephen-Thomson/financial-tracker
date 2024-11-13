@@ -30,7 +30,7 @@ const initializeDatabase = async () => {
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         public_key VARCHAR(255) UNIQUE NOT NULL,
-        email VARCHAR(255) NOT NULL,
+        email VARCHAR(255) DEFAULT NULL,
         role ENUM('keyPerson', 'Manager', 'Accountant', 'Staff', 'Deleted') NOT NULL,
         basket VARCHAR(50) DEFAULT 'user',
         txid VARCHAR(255), -- Blockchain Transaction ID
@@ -45,7 +45,7 @@ const initializeDatabase = async () => {
 
     // Create the Messages table for storing messages between users
     await connection.query(`
-      CREATE TABLE messages (
+      CREATE TABLE IF NOT EXISTS messages (
         id INT AUTO_INCREMENT PRIMARY KEY,
         message_id VARCHAR(255) NOT NULL, -- unique identifier from PeerServ
         sender_public_key VARCHAR(255) NOT NULL, -- public key of the sender
@@ -107,22 +107,33 @@ export const addUser = async (
   txid: string,
   outputScript: string,
   tokenId: string,
-  encryptedData: string,
+  encryptedData: object,
   encryptionMetadata: object,
   metadata: object
 ) => {
   try {
     await pool.query(
-      'INSERT INTO users (public_key, email, role, basket, txid, output_script, token_id, encrypted_data, encryption_metadata, metadata) VALUES (?, ?, ?, "user", ?, ?, ?, ?, ?, ?)',
-      [publicKey, email, role, txid, outputScript, tokenId, encryptedData, JSON.stringify(encryptionMetadata), JSON.stringify(metadata)]
+      `INSERT INTO users (public_key, email, role, basket, txid, output_script, token_id, encrypted_data, encryption_metadata, metadata)
+       VALUES (?, ?, ?, "user", ?, ?, ?, ?, ?, ?)`,
+      [
+        publicKey,
+        email,
+        role,
+        txid,
+        outputScript,
+        tokenId,
+        JSON.stringify(encryptedData),
+        JSON.stringify(encryptionMetadata),
+        JSON.stringify(metadata),
+      ]
     );
     console.log(`User ${email} added with role ${role} and blockchain transaction ID ${txid}`);
-    return { email, role, txid };
   } catch (error) {
     console.error('Error adding user to database:', error);
     throw error;
   }
 };
+
 
 // Remove a user and log the deletion transaction
 export const removeUser = async (
@@ -152,18 +163,17 @@ export const getUserRole = async (publicKey: string) => {
   const [userCountRows]: [RowDataPacket[], any] = await pool.query('SELECT COUNT(*) as count FROM users');
   const userCount = userCountRows[0].count;
 
+  // If no users exist, return null to indicate no role exists
   if (userCount === 0) {
-    await pool.query('INSERT INTO users (public_key, role, basket) VALUES (?, ?, "user")', [publicKey, 'keyPerson']);
-    return 'keyPerson';
-  }
-
-  const [rows]: [RowDataPacket[], any] = await pool.query('SELECT role FROM users WHERE public_key = ?', [publicKey]);
-  if (rows.length === 0) {
     return null;
   }
 
-  return rows[0].role;
+  // Fetch the role of the user with the given public key
+  const [rows]: [RowDataPacket[], any] = await pool.query('SELECT role FROM users WHERE public_key = ?', [publicKey]);
+  return rows.length ? rows[0].role : null;
 };
+
+
 
 // Create a new account table for a user
 export const createAccountTable = async (accountName: string, basket: string) => {
@@ -221,7 +231,7 @@ export const insertAccountEntry = async (
     const insertQuery = `
       INSERT INTO ${tableName} 
       (date, txid, output_script, token_id, encrypted_data, encryption_metadata, metadata)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+      VALUES (?, ?, ?, ?, ?, ?, ?);
     `;
 
     await pool.query(insertQuery, [
@@ -522,6 +532,19 @@ export const getDistinctMonthsForAccount = async (accountName: string) => {
 
   const [rows]: [RowDataPacket[], any] = await pool.query(query);
   return rows.map(row => row.month); // Return an array of unique 'YYYY-MM' formatted strings
+};
+
+// Check if there is an existing first entry in the General Journal
+export const checkGeneralJournalFirstEntry = async () => {
+  try {
+    const [rows]: [RowDataPacket[], any] = await pool.query(`
+      SELECT COUNT(*) as count FROM general_journal
+    `);
+    return rows[0].count > 0;
+  } catch (error) {
+    console.error('Error checking first entry in General Journal:', error);
+    throw error;
+  }
 };
 
 // Call the function to initialize the database when the program starts

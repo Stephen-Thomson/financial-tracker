@@ -15,9 +15,9 @@ module.exports = {
           os: require.resolve('os-browserify'),
           process: require.resolve('process'),
           assert: require.resolve('assert'),
-          vm: require.resolve('vm-browserify'),
-          https: require.resolve('https-browserify'),
-          fs: require.resolve("browserify-fs")
+          fs: require.resolve("browserify-fs"),
+          vm: require.resolve("vm-browserify"),
+          https: require.resolve("https-browserify"),
         },
       },
       plugins: [

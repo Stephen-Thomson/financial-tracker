@@ -8,7 +8,7 @@ import {
   addMessage, getMessagesForUser, updateMessageStatus,
   addPaymentToken, getPaymentTokensByStatus, updatePaymentTokenStatus,
   getPaymentTokenByTxid, getAccounts, getAccountEntries, getGeneralJournalEntries,
-  getDistinctMonthsForAccount
+  getDistinctMonthsForAccount, checkGeneralJournalFirstEntry
 } from './db';
 
 const app = express();
@@ -342,3 +342,15 @@ app.get('/api/accounts/:accountName/distinct-months', async (req, res) => {
     res.status(500).json({ message: 'Error retrieving distinct months' });
   }
 });
+
+// Endpoint to check if the first entry exists in the General Journal
+app.get('/api/general-journal/first-entry', async (req, res) => {
+  try {
+    const hasFirstEntry = await checkGeneralJournalFirstEntry();
+    res.json({ hasFirstEntry });
+  } catch (error) {
+    console.error('Error checking first entry in General Journal:', error);
+    res.status(500).json({ message: 'Error checking first entry in General Journal' });
+  }
+});
+

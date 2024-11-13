@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Typography, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 import axios from 'axios';
-import pushdrop from 'pushdrop';
+import { decrypt } from '@babbage/sdk-ts';
 
 interface JournalEntry {
   date: string;
@@ -13,13 +13,13 @@ interface JournalEntry {
 
 // Decrypt function based on pushdrop
 const decryptData = async (encryptedData: string): Promise<string> => {
-  const decrypted = await pushdrop.decrypt({
+  const decrypted = await decrypt({
     ciphertext: encryptedData,
-    protocolID: 'user-encryption',
+    protocolID: [0, 'user encryption'],
     keyID: '1',
     returnType: 'string',
   });
-  return decrypted;
+  return typeof decrypted === 'string' ? decrypted : Buffer.from(decrypted).toString('utf8');
 };
 
 const ViewGeneralJournalPage: React.FC = () => {
@@ -28,7 +28,7 @@ const ViewGeneralJournalPage: React.FC = () => {
   useEffect(() => {
     const fetchJournalEntries = async () => {
       try {
-        const response = await axios.get('/api/general-journal');
+        const response = await axios.get('http://localhost:5000/api/general-journal');
         const encryptedEntries = response.data;
 
         // Decrypt each field in the journal entry

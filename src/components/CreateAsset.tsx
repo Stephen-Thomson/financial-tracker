@@ -4,7 +4,7 @@ import axios from 'axios';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { getPublicKey } from '@babbage/sdk-ts';
-import { handleTransaction } from '../services/blockchain/blockchain';
+import { handleInitialTransaction } from '../services/blockchain/blockchain';
 
 const CreateAsset: React.FC = () => {
   const [accountName, setAccountName] = useState<string>('');
@@ -20,8 +20,14 @@ const CreateAsset: React.FC = () => {
         identityKey: true,
       });
   
-      // Create account in backend first
-      await axios.post('/api/accounts/create', { accountName });
+      // Define account parameters
+      const accountData = {
+        accountName,
+        basket: 'asset',
+      };
+  
+      // Create account in backend
+      await axios.post('http://localhost:5000/api/accounts/create', accountData);
   
       // Prepare data for the initial transaction entry
       const transactionData = {
@@ -33,14 +39,16 @@ const CreateAsset: React.FC = () => {
         userPublicKey,
       };
   
-      await handleTransaction(transactionData);
-
+      // Call handleInitialTransaction to manage blockchain and backend entry
+      await handleInitialTransaction(transactionData);
+  
       // Navigate to accounts page after completion
       navigate('/create-accounts');
     } catch (error) {
       console.error('Error creating asset account:', error);
     }
   };
+  
 
   return (
     <div>

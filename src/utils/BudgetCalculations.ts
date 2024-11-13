@@ -1,10 +1,10 @@
 import axios from 'axios';
-import pushdrop from 'pushdrop';
+import { decrypt } from '@babbage/sdk-ts';
 
 // Function to fetch the last entry's encrypted data and basket from the backend
 export const fetchLastEntry = async (accountName: string) => {
   try {
-    const response = await axios.get(`/api/accounts/last-entry/${accountName}`);
+    const response = await axios.get(`http://localhost:5000/api/accounts/last-entry/${accountName}`);
     if (response.data) {
       return response.data.encryptedData;
     } else {
@@ -19,13 +19,15 @@ export const fetchLastEntry = async (accountName: string) => {
 // Function to decrypt data using pushdrop
 export const decryptData = async (encryptedData: string): Promise<string> => {
   try {
-    const decrypted = await pushdrop.decrypt({
+    const decrypted = await decrypt({
       ciphertext: encryptedData,
-      protocolID: 'user-encryption',
+      protocolID: [0, 'user encryption'], // Use the same protocolID format as during encryption
       keyID: '1',
       returnType: 'string',
     });
-    return decrypted;
+
+    // Ensure the return type is always a string
+    return typeof decrypted === 'string' ? decrypted : Buffer.from(decrypted).toString('utf8');
   } catch (error) {
     console.error('Error decrypting data:', error);
     throw error;
@@ -54,7 +56,7 @@ export const getDecryptedRunningTotal = async (accountName: string): Promise<num
 // Function to fetch distinct months and calculate the total number of months with entries
 export const getTotalMonthsForAccount = async (accountName: string): Promise<number> => {
     try {
-      const response = await axios.get(`/api/accounts/${accountName}/distinct-months`);
+      const response = await axios.get(`http://localhost:5000/api/accounts/${accountName}/distinct-months`);
       const months = response.data; // Array of unique 'YYYY-MM' formatted strings
   
       return months.length; // Number of distinct months with entries
@@ -81,7 +83,7 @@ export const calculateAccountAverage = async (accountName: string): Promise<numb
 export const calculateLiabilities = async (accountName: string): Promise<number> => {
     try {
       // Fetch all entries for the account
-      const response = await axios.get(`/api/accounts/${accountName}/entries`);
+      const response = await axios.get(`http://localhost:5000/api/accounts/${accountName}/entries`);
       const entries = response.data;
   
       let totalDebit = 0;

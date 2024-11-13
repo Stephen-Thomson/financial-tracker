@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { createAction, getPublicKey } from '@babbage/sdk-ts';
 import pushdrop from 'pushdrop';
+import { encrypt } from '@babbage/sdk-ts';
 
 type AllowedRoles = 'Manager' | 'Accountant' | 'Staff' | 'Viewer' | 'keyPerson' | 'limitedUser';
 
@@ -16,6 +17,10 @@ export const fetchUserRoleFromBlockchain = async (publicKey: string): Promise<st
     return response.data.role;
   } catch (error) {
     if (isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        console.warn('No user found for this public key; assigning as initial key user.');
+        return null;
+      }
       console.error('Error fetching user role from blockchain:', error.response?.data || error.message);
     } else {
       console.error('Unknown error:', error);
@@ -23,6 +28,7 @@ export const fetchUserRoleFromBlockchain = async (publicKey: string): Promise<st
     return null;
   }
 };
+
 
 // Fetch users from the blockchain (simulated by database)
 export const fetchUsersFromBlockchain = async (): Promise<{ email: string; role: AllowedRoles }[]> => {
@@ -40,9 +46,9 @@ export const fetchUsersFromBlockchain = async (): Promise<{ email: string; role:
 };
 
 // Store a user on the blockchain with the full process
-export const storeUserOnBlockchain = async (publicKey: string, email: string, role: AllowedRoles) => {
+export const storeUserOnBlockchain = async (publicKey: string, email: string, role: string) => {
   try {
-    // Step 1: Encrypt sensitive data (email and role)
+    // Step 1: Encrypt sensitive data (email and publicKey)
     const encryptedEmail = await encryptData(email);
     const encryptedPublicKey = await encryptData(publicKey);
 
@@ -53,25 +59,26 @@ export const storeUserOnBlockchain = async (publicKey: string, email: string, ro
         Buffer.from(new Date().toISOString()),
         Buffer.from(encryptedEmail),
         Buffer.from(encryptedPublicKey),
+        Buffer.from(role),
         Buffer.from('User Addition'),
       ],
-      protocolID: 'user-management',
+      protocolID: 'user management',
       keyID: userPublicKey || 'default-key-id',
     });
 
     // Step 3: Create a Blockchain Action to log the addition
     const actionResult = await createAction({
-      outputs: [{ satoshis: 1, script: outputScript, description: `Add user: ${email}` }],
-      description: 'User addition transaction',
+      outputs: [{ satoshis: 1, script: outputScript }],
+      description: `Add user: ${email}`,
     });
 
-    // Step 4: Store transaction details in the backend
+    // Step 4: Store transaction details in the backend database
     await axios.post('http://localhost:5000/api/users', {
       publicKey,
       email,
       role,
       txid: actionResult.txid,
-      outputScript,
+      outputScript: outputScript.toString('hex'),
       metadata: { rawTx: actionResult.rawTx },
     });
 
@@ -84,7 +91,6 @@ export const storeUserOnBlockchain = async (publicKey: string, email: string, ro
     }
   }
 };
-
 
 // Remove a user from the blockchain
 export const removeUserFromBlockchain = async (email: string) => {
@@ -100,7 +106,7 @@ export const removeUserFromBlockchain = async (email: string) => {
 
     // Generate output script for deleting the user (redeem step)
     const unlockScript = await pushdrop.redeem({
-      protocolID: 'user-management',
+      protocolID: 'user management',
       keyID: userPublicKey || 'default-key-id',
       prevTxId: txid,
       outputIndex: 0,
@@ -132,7 +138,7 @@ export const removeUserFromBlockchain = async (email: string) => {
         Buffer.from('deleted'),
         Buffer.from('User Deletion'),
       ],
-      protocolID: 'user-management',
+      protocolID: 'user management',
       keyID: userPublicKey || 'default-key-id',
     });
 
@@ -197,7 +203,7 @@ const validateTransaction = (debitAmount: number, creditAmount: number) => {
 export const handleTransaction = async (transaction: TransactionData) => {
   try {
     // Validate the single entry's debit and credit amounts
-    validateTransaction(transaction.debitAmount, transaction.creditAmount);
+    //validateTransaction(transaction.debitAmount, transaction.creditAmount);
 
     // Retrieve the user's public key
     const userPublicKey = await getPublicKey({ reason: 'Transaction authorization', identityKey: true });
@@ -214,14 +220,17 @@ export const handleTransaction = async (transaction: TransactionData) => {
 
 // Function to encrypt data, including public key and email
 const encryptData = async (data: string): Promise<string> => {
-  const encrypted = await pushdrop.encrypt({
+  const encrypted = await encrypt({
     plaintext: Buffer.from(data),
-    protocolID: 'user-encryption',
+    protocolID: [0, 'user encryption'],  // Update protocolID to match any previous settings
     keyID: '1',
     returnType: 'string',
   });
-  return encrypted;
+  
+  // Ensure the return type is always a string
+  return typeof encrypted === 'string' ? encrypted : Buffer.from(encrypted).toString('base64');
 };
+
 
 // Function to add the key user with all necessary blockchain steps
 export const addKeyUser = async (publicKey: string, email: string) => {
@@ -239,7 +248,7 @@ export const addKeyUser = async (publicKey: string, email: string) => {
         Buffer.from('keyPerson'),
         Buffer.from('Key User Creation'),
       ],
-      protocolID: 'user-management',
+      protocolID: 'userManagement',
       keyID: publicKey || 'default-key-id',
     });
 
@@ -261,7 +270,7 @@ export const addKeyUser = async (publicKey: string, email: string) => {
         publicKey: encryptedPublicKey,
         email: encryptedEmail,
       },
-      encryptionMetadata: { keyID: '1', protocolID: 'user-encryption' },
+      encryptionMetadata: { keyID: '1', protocolID: 'userEncryption' },
       metadata: { rawTx: actionResult.rawTx },
     });
 
@@ -299,7 +308,7 @@ const postTransactionEntry = async (data: TransactionData) => {
         Buffer.from(encryptedDataBlob),
         Buffer.from(data.accountName),
       ],
-      protocolID: 'financial-tracker-accountentry',
+      protocolID: 'financial tracker accountentry',
       keyID: encryptedPublicKey,
     });
 
@@ -310,7 +319,7 @@ const postTransactionEntry = async (data: TransactionData) => {
     });
 
     // Store the transaction entry in the backend
-    await axios.post('/api/accounts/entry', {
+    await axios.post('http://localhost:5000/api/accounts/entry', {
       accountName: data.accountName,
       date: data.date,
       txid: actionResult.txid,
@@ -319,7 +328,7 @@ const postTransactionEntry = async (data: TransactionData) => {
       encryptedData: encryptedDataBlob,
       encryptionMetadata: { 
         keyID: 'default-key-id',
-        protocolID: 'financial-tracker-accountentry',
+        protocolID: 'financial tracker accountentry',
       },
       metadata: { rawTx: actionResult.rawTx },
     });
@@ -343,7 +352,7 @@ const postTransactionEntry = async (data: TransactionData) => {
         Buffer.from(data.date),
         Buffer.from(encryptedGJDataBlob),
       ],
-      protocolID: 'financial-tracker-journalentry',
+      protocolID: 'financial tracker journalentry',
       keyID: encryptedPublicKey,
     });
 
@@ -354,7 +363,7 @@ const postTransactionEntry = async (data: TransactionData) => {
     });
 
     // Store the journal entry in the backend
-    await axios.post('/api/general-journal/entry', {
+    await axios.post('http://localhost:5000/api/general-journal/entry', {
       date: data.date,
       txid: journalActionResult.txid,
       outputScript: journalOutputScript,
@@ -362,7 +371,7 @@ const postTransactionEntry = async (data: TransactionData) => {
       encryptedData: encryptedGJDataBlob,
       encryptionMetadata: { 
         keyID: 'default-key-id',
-        protocolID: 'financial-tracker-journalentry',
+        protocolID: 'financial tracker journalentry',
       },
       metadata: { rawTx: journalActionResult.rawTx },
     });
@@ -375,11 +384,64 @@ const postTransactionEntry = async (data: TransactionData) => {
   }
 };
 
+export const handleInitialTransaction = async (data: TransactionData) => {
+  try {
+    // Encrypt relevant data fields
+    const encryptedDescription = await encryptData(data.description);
+    const encryptedDebit = await encryptData(data.debitAmount.toString());
+    const encryptedCredit = await encryptData(data.creditAmount.toString());
+    const encryptedPublicKey = await encryptData(data.userPublicKey);
 
+    // Combine all encrypted fields into a single blob
+    const encryptedDataBlob = JSON.stringify({
+      description: encryptedDescription,
+      debit: encryptedDebit,
+      credit: encryptedCredit,
+      publicKey: encryptedPublicKey
+    });
+
+    // Generate the pushdrop token for the initial transaction entry
+    const outputScript = await pushdrop.create({
+      fields: [
+        Buffer.from(data.date),
+        Buffer.from(encryptedDataBlob),
+        Buffer.from(data.accountName),
+      ],
+      protocolID: 'financial tracker accountentry',
+      keyID: encryptedPublicKey,
+    });
+
+    // Blockchain transaction for the initial entry
+    const actionResult = await createAction({
+      outputs: [{ satoshis: 1, script: outputScript, description: `Initial entry for ${data.accountName}` }],
+      description: 'Initial account entry transaction',
+    });
+
+    // Store the initial transaction entry in the backend
+    await axios.post('http://localhost:5000/api/accounts/entry', {
+      accountName: data.accountName,
+      date: data.date,
+      txid: actionResult.txid,
+      outputScript,
+      tokenId: actionResult.txid,
+      encryptedData: encryptedDataBlob,
+      encryptionMetadata: { 
+        keyID: 'default-key-id',
+        protocolID: 'financial tracker accountentry',
+      },
+      metadata: { rawTx: actionResult.rawTx },
+    });
+
+    console.log(`Initial transaction entry created for account: ${data.accountName}`);
+  } catch (error) {
+    console.error('Error creating initial transaction entry:', error);
+    throw error;
+  }
+};
 
 export const getUserEmail = async (publicKey: string): Promise<string | null> => {
   try {
-    const response = await axios.get(`/api/users/email/${publicKey}`);
+    const response = await axios.get(`http://localhost:5000/api/users/email/${publicKey}`);
     return response.data.email;
   } catch (error) {
     console.error('Error fetching user email:', error);
@@ -391,7 +453,7 @@ export const getUserEmail = async (publicKey: string): Promise<string | null> =>
 const calculateRunningTotal = async (accountName: string, debitAmount: number, creditAmount: number): Promise<number> => {
   try {
     // Step 1: Query backend for the basket and last running total of the account
-    const response = await axios.get(`/api/accounts/last-entry/${accountName}`);
+    const response = await axios.get(`http://localhost:5000/api/accounts/last-entry/${accountName}`);
     const { runningTotal, basket } = response.data;
 
     // Step 2: Calculate the new running total based on basket type and amounts

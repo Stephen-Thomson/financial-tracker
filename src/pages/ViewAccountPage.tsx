@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FormControl, InputLabel, MenuItem, Select, SelectChangeEvent, Typography, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 import axios from 'axios';
-import pushdrop from 'pushdrop';
+import { decrypt } from '@babbage/sdk-ts';
 
 interface Account {
   id: number;
@@ -18,13 +18,13 @@ interface AccountEntry {
 
 // Decrypt data function
 const decryptData = async (encryptedData: string): Promise<string> => {
-  const decrypted = await pushdrop.decrypt({
+  const decrypted = await decrypt({
     ciphertext: encryptedData,
-    protocolID: 'user-encryption',
+    protocolID: [0, 'user encryption'],
     keyID: '1',
     returnType: 'string',
   });
-  return decrypted;
+  return typeof decrypted === 'string' ? decrypted : Buffer.from(decrypted).toString('utf8');
 };
 
 const ViewAccountPage: React.FC = () => {
@@ -35,7 +35,7 @@ const ViewAccountPage: React.FC = () => {
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
-        const response = await axios.get('/api/accounts');
+        const response = await axios.get('http://localhost:5000/api/accounts');
         setAccounts(response.data);
       } catch (error) {
         console.error('Error fetching accounts:', error);
@@ -48,7 +48,7 @@ const ViewAccountPage: React.FC = () => {
     const fetchAccountEntries = async () => {
       if (selectedAccount) {
         try {
-          const response = await axios.get(`/api/accounts/${selectedAccount}/entries`);
+          const response = await axios.get(`http://localhost:5000/api/accounts/${selectedAccount}/entries`);
           const encryptedEntries = response.data;
 
           // Decrypt each field in the entry

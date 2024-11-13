@@ -22,51 +22,56 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
         });
 
         // Step 1: Create the General Journal table on the backend
-        await axios.post('/api/general-journal/create');
+        await axios.post('http://localhost:5000/api/general-journal/create');
 
-        // Step 2: Generate the output script for the General Journal creation entry
-        const journalCreationOutputScript = await pushdrop.create({
-          fields: [
-            Buffer.from(new Date().toISOString()), // Date of Entry
-            Buffer.from("General Journal creation"), // Description of Entry
-            Buffer.from("0"),                        // Debit Amount
-            Buffer.from("0"),                        // Credit Amount
-            Buffer.from("General Journal")           // Account Type
-          ],
-          protocolID: 'financial-tracker-journalentry', // Unique protocol ID
-          keyID: userPublicKey || 'default-key-id'      // User’s public key
-        });
+        // Check if the General Journal has the first entry
+        const gjFirstEntry = await axios.get('http://localhost:5000/api/general-journal/first-entry');
+        
+        if (!gjFirstEntry.data.hasFirstEntry) {
+          // Step 2: Generate the output script for the General Journal creation entry
+          const journalCreationOutputScript = await pushdrop.create({
+            fields: [
+              Buffer.from(new Date().toISOString()), // Date of Entry
+              Buffer.from("General Journal creation"), // Description of Entry
+              Buffer.from("0"),                        // Debit Amount
+              Buffer.from("0"),                        // Credit Amount
+              Buffer.from("General Journal")           // Account Type
+            ],
+            protocolID: 'financial tracker journalentry', // Unique protocol ID
+            keyID: userPublicKey || 'default-key-id'      // User’s public key
+          });
 
-        // Step 3: Create a blockchain transaction with the generated script
-        const actionResult = await createAction({
-          outputs: [
-            {
-              satoshis: 1,  // Set a minimum satoshi amount
-              script: journalCreationOutputScript,
-              description: 'General Journal creation entry'
-            }
-          ],
-          description: 'Creating General Journal entry transaction'
-        });
+          // Step 3: Create a blockchain transaction with the generated script
+          const actionResult = await createAction({
+            outputs: [
+              {
+                satoshis: 1,  // Set a minimum satoshi amount
+                script: journalCreationOutputScript,
+                description: 'General Journal creation entry'
+              }
+            ],
+            description: 'Creating General Journal entry transaction'
+          });
 
-        // Extract transaction details
-        const txid = actionResult.txid;
-        const rawTx = actionResult.rawTx;
+          // Extract transaction details
+          const txid = actionResult.txid;
+          const rawTx = actionResult.rawTx;
 
-        // Step 4: Insert the General Journal creation entry into the backend
-        await axios.post('/api/general-journal/entry', {
-          date: new Date().toISOString().split('T')[0],
-          description: 'General Journal creation',
-          debit: 0,
-          credit: 0,
-          accountName: 'General Journal',
-          viewPermission: 'Manager',
-          txid,
-          outputScript: journalCreationOutputScript,
-          metadata: { rawTx }
-        });
+          // Step 4: Insert the General Journal creation entry into the backend
+          await axios.post('http://localhost:5000/api/general-journal/entry', {
+            date: new Date().toISOString().split('T')[0],
+            description: 'General Journal creation',
+            debit: 0,
+            credit: 0,
+            accountName: 'General Journal',
+            viewPermission: 'Manager',
+            txid,
+            outputScript: journalCreationOutputScript,
+            metadata: { rawTx }
+          });
 
-        console.log('General Journal created with blockchain entry');
+          console.log('General Journal created with blockchain entry');
+        }
       } catch (error) {
         console.error('Error creating General Journal:', error);
       } finally {
@@ -108,12 +113,12 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
         <div>
           <h2>Create Primary Accounts</h2>
           <p>Click the button below to set up your primary accounts (Income, Expenses, Assets, Liabilities).</p>
-          <button onClick={() => navigate('/create-accounts?onboarding=true')}>Set Up Accounts</button>
+          <button onClick={() => navigate('/create-accounts', { state: { onboarding: true } })}>Set Up Accounts</button>
         </div>
       )}
 
-      {/* Step 3: Add Team Members and Assign Roles */}
-      {step === 3 && (
+      {/* Step 2: Add Team Members and Assign Roles */}
+      {step === 2 && (
         <div>
           <h2>Add Team Members & Assign Roles</h2>
           <p>Click the button below to add team members and assign roles.</p>
@@ -121,8 +126,8 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
         </div>
       )}
 
-      {/* Step 4: Backup Wallet and Security */}
-      {step === 4 && (
+      {/* Step 3: Backup Wallet and Security */}
+      {step === 3 && (
         <div>
           <h2>Backup & Security</h2>
           <p>It's important to back up your wallet to secure your financial data.</p>
@@ -131,8 +136,8 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
         </div>
       )}
 
-      {/* Step 5: Completion */}
-      {step === 5 && (
+      {/* Step 4: Completion */}
+      {step === 4 && (
         <div>
           <h2>Onboarding Complete</h2>
           <p>You've successfully completed the setup. You can now start managing your finances.</p>

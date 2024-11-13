@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Routes, Route, Link } from 'react-router-dom';
+import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { fetchUserRoleFromBlockchain } from './services/blockchain/blockchain';
 
 // Import pages/components
@@ -28,14 +28,16 @@ const AppWrapper: React.FC = () => {
   const [isKeyPerson, setIsKeyPerson] = useState<boolean | null>(null);
   const [userPublicKey, setUserPublicKey] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null); // Store user role
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [hasNavigated, setHasNavigated] = useState<boolean>(false);
+  
   const navigate = useNavigate();
+  const location = useLocation(); // Get the current path
 
   const checkUserRole = async (publicKey: string) => {
     try {
       const role = await fetchUserRoleFromBlockchain(publicKey);
       setUserRole(role);
-
       if (role === 'Deleted') {
         alert('Access Denied: Your account has been deactivated.');
       } else if (role === 'keyPerson') {
@@ -58,17 +60,20 @@ const AppWrapper: React.FC = () => {
     await checkUserRole(publicKey);
   };
 
-  useEffect(() => {
-    if (isKeyPerson !== null && isOnboarded !== null) {
-      if (userRole !== 'Deleted') {
-        if (isKeyPerson && !isOnboarded) {
-          navigate('/onboarding');
-        } else if (isOnboarded) {
-          navigate('/dashboard');
-        }
-      }
-    }
-  }, [isKeyPerson, isOnboarded, userRole, navigate]);
+  // useEffect(() => {
+  //   // Only run this effect if the user has not yet been navigated
+  //   if (!hasNavigated && isKeyPerson !== null && isOnboarded !== null) {
+  //     if (userRole !== 'Deleted') {
+  //       if (isKeyPerson && !isOnboarded && location.pathname !== '/onboarding') {
+  //         navigate('/onboarding');
+  //         setHasNavigated(true); // Mark as navigated to avoid further redirects
+  //       } else if (isOnboarded && location.pathname !== '/dashboard') {
+  //         navigate('/dashboard');
+  //         setHasNavigated(true); // Mark as navigated to avoid further redirects
+  //       }
+  //     }
+  //   }
+  // }, [isKeyPerson, isOnboarded, userRole, location, navigate, hasNavigated]);
 
   return (
     <div className="app-wrapper">
@@ -114,7 +119,7 @@ const AppWrapper: React.FC = () => {
             <Route path="/createIncome" element={<CreateIncome />} />
             <Route path="/createAsset" element={<CreateAsset />} />
             <Route path="/createLiability" element={<CreateLiability />} />
-            <Route path="/create-accounts" element={<CreateAccountsPage onboarding={true} />} />
+            <Route path="/create-accounts" element={<CreateAccountsPage />} />
             <Route path="/manager" element={<ManagerPage onboarding={true} />} />
             <Route path="/totals" element={<Totals />} />
             <Route path="/message" element={<MessagePage />} />
