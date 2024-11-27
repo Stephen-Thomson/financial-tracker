@@ -1,24 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { storeUserOnBlockchain } from '../services/blockchain/blockchain';
 
 interface ManagerPageProps {
   onboarding: boolean;
 }
 
 const ManagerPage: React.FC<ManagerPageProps> = ({ onboarding }) => {
-  const [members, setMembers] = useState<{ publicKey: string; role: string }[]>([]);
+  const [members, setMembers] = useState<{ publicKey: string; email: string; role: string }[]>([]);
   const [newMemberPublicKey, setNewMemberPublicKey] = useState<string>('');
-  const [newMemberRole, setNewMemberRole] = useState<string>('Viewer');
+  const [newMemberEmail, setNewMemberEmail] = useState<string>(''); // Added email state
+  const [newMemberRole, setNewMemberRole] = useState<string>('Staff'); // Updated default role
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
-  const location = useLocation();
 
   // Fetch current members when the page loads
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/members');
+        const response = await axios.get('http://localhost:5000/api/users');
         setMembers(response.data.members);
       } catch (error) {
         console.error('Error fetching members:', error);
@@ -29,34 +30,44 @@ const ManagerPage: React.FC<ManagerPageProps> = ({ onboarding }) => {
     fetchMembers();
   }, []);
 
-  // Add a new member with a specified public key and role
-  const handleAddMember = async () => {
-    try {
-      if (!newMemberPublicKey) {
-        setErrorMessage('Please provide a public key.');
-        return;
-      }
-
-      const response = await axios.post('http://localhost:5000/api/members', {
-        publicKey: newMemberPublicKey,
-        role: newMemberRole
-      });
-
-      setMembers([...members, response.data]);
-      setNewMemberPublicKey('');
-      setNewMemberRole('Staff');
-    } catch (error) {
-      console.error('Error adding member:', error);
-      setErrorMessage('Failed to add member.');
+  // Add a new member with a specified public key, email, and role
+const handleAddMember = async () => {
+  try {
+    if (!newMemberPublicKey || !newMemberEmail) {
+      setErrorMessage('Please provide both a public key and email.');
+      return;
     }
-  };
+
+    // Call the blockchain function to store the user
+    await storeUserOnBlockchain(newMemberPublicKey, newMemberEmail, newMemberRole);
+
+    // Add the new member to the local state
+    setMembers([
+      ...members,
+      {
+        publicKey: newMemberPublicKey,
+        email: newMemberEmail,
+        role: newMemberRole,
+      },
+    ]);
+
+    // Reset input fields
+    setNewMemberPublicKey('');
+    setNewMemberEmail('');
+    setNewMemberRole('Staff'); // Reset to default role
+    setErrorMessage(null); // Clear any previous error messages
+  } catch (error) {
+    console.error('Error adding member:', error);
+    setErrorMessage('Failed to add member.');
+  }
+};
 
   // Remove a member and update the list
   const handleRemoveMember = async (index: number) => {
     try {
       const memberToRemove = members[index];
 
-      await axios.delete(`http://localhost:5000/api/members/${memberToRemove.publicKey}`);
+      await axios.delete(`http://localhost:5000/api/users/${memberToRemove.publicKey}`);
 
       const updatedMembers = [...members];
       updatedMembers.splice(index, 1);
@@ -87,7 +98,7 @@ const ManagerPage: React.FC<ManagerPageProps> = ({ onboarding }) => {
         <ul>
           {members.map((member, index) => (
             <li key={index}>
-              {member.publicKey} - {member.role}{' '}
+              {member.publicKey} - {member.email} - {member.role}{' '}
               <button onClick={() => handleRemoveMember(index)}>Remove</button>
             </li>
           ))}
@@ -104,9 +115,18 @@ const ManagerPage: React.FC<ManagerPageProps> = ({ onboarding }) => {
         onChange={(e) => setNewMemberPublicKey(e.target.value)}
         placeholder="Enter public key"
       />
+      <input
+        type="email"
+        value={newMemberEmail}
+        onChange={(e) => setNewMemberEmail(e.target.value)}
+        placeholder="Enter email address"
+      />
       <select value={newMemberRole} onChange={(e) => setNewMemberRole(e.target.value)}>
-        <option value="Viewer">Viewer</option>
-        <option value="Editor">Editor</option>
+        <option value="keyPerson">Key Person</option>
+        <option value="Manager">Manager</option>
+        <option value="Accountant">Accountant</option>
+        <option value="Staff">Staff</option>
+        <option value="Deleted">Deleted</option>
       </select>
       <button onClick={handleAddMember}>Add Member</button>
 

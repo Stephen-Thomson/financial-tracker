@@ -3,6 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { createAction, getPublicKey } from '@babbage/sdk-ts';
 import pushdrop from 'pushdrop';
+import { encrypt } from '@babbage/sdk-ts';
+
+const encryptData = async (data: string): Promise<string> => {
+  const encrypted = await encrypt({
+    plaintext: Buffer.from(data),
+    protocolID: [0, 'user encryption'],
+    keyID: '1',
+    returnType: 'string',
+  });
+  
+  return typeof encrypted === 'string' ? encrypted : Buffer.from(encrypted).toString('base64');
+};
 
 const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ publicKey, email }) => {
   const navigate = useNavigate();
@@ -20,56 +32,70 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
           reason: 'General Journal creation authorization',
           identityKey: true,
         });
-
+    
         // Step 1: Create the General Journal table on the backend
         await axios.post('http://localhost:5000/api/general-journal/create');
-
+    
         // Check if the General Journal has the first entry
         const gjFirstEntry = await axios.get('http://localhost:5000/api/general-journal/first-entry');
         
         if (!gjFirstEntry.data.hasFirstEntry) {
-          // Step 2: Generate the output script for the General Journal creation entry
+          // Step 2: Encrypt all necessary fields
+          const encryptedDescription = await encryptData('General Journal creation');
+          const encryptedDebit = await encryptData('0');
+          const encryptedCredit = await encryptData('0');
+          const encryptedAccountName = await encryptData('General Journal');
+          const encryptedPublicKey = await encryptData(userPublicKey);
+    
+          // Combine all encrypted fields into a single blob
+          const encryptedGJDataBlob = JSON.stringify({
+            description: encryptedDescription,
+            debit: encryptedDebit,
+            credit: encryptedCredit,
+            publicKey: encryptedPublicKey,
+            accountName: encryptedAccountName,
+          });
+    
+          // Step 3: Generate the pushdrop token for the General Journal entry
           const journalCreationOutputScript = await pushdrop.create({
             fields: [
-              Buffer.from(new Date().toISOString()), // Date of Entry
-              Buffer.from("General Journal creation"), // Description of Entry
-              Buffer.from("0"),                        // Debit Amount
-              Buffer.from("0"),                        // Credit Amount
-              Buffer.from("General Journal")           // Account Type
+              Buffer.from(new Date().toISOString()),
+              Buffer.from(encryptedGJDataBlob),
             ],
-            protocolID: 'financial tracker journalentry', // Unique protocol ID
-            keyID: userPublicKey || 'default-key-id'      // User’s public key
+            protocolID: 'financial tracker journalentry',
+            keyID: userPublicKey || 'default-key-id',
           });
-
-          // Step 3: Create a blockchain transaction with the generated script
+    
+          // Step 4: Create a blockchain transaction with the generated script
           const actionResult = await createAction({
             outputs: [
               {
-                satoshis: 1,  // Set a minimum satoshi amount
+                satoshis: 1,
                 script: journalCreationOutputScript,
-                description: 'General Journal creation entry'
+                description: 'General Journal creation entry',
               }
             ],
-            description: 'Creating General Journal entry transaction'
+            description: 'Creating General Journal entry transaction',
           });
-
+    
           // Extract transaction details
           const txid = actionResult.txid;
           const rawTx = actionResult.rawTx;
-
-          // Step 4: Insert the General Journal creation entry into the backend
+    
+          // Step 5: Insert the General Journal creation entry into the backend
           await axios.post('http://localhost:5000/api/general-journal/entry', {
             date: new Date().toISOString().split('T')[0],
-            description: 'General Journal creation',
-            debit: 0,
-            credit: 0,
-            accountName: 'General Journal',
-            viewPermission: 'Manager',
             txid,
             outputScript: journalCreationOutputScript,
-            metadata: { rawTx }
+            tokenId: txid,
+            encryptedData: encryptedGJDataBlob,
+            encryptionMetadata: { 
+              keyID: 'default-key-id',
+              protocolID: 'financial tracker journalentry',
+            },
+            metadata: { rawTx },
           });
-
+    
           console.log('General Journal created with blockchain entry');
         }
       } catch (error) {
@@ -78,11 +104,10 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
         setIsLoading(false);
       }
     };
-
-    // Run the General Journal creation once on load
+  
     handleCreateGeneralJournal();
   }, []);
-
+  
   const handleBackupComplete = () => {
     setBackupCompleted(true);
   };

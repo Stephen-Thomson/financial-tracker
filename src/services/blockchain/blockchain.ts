@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { createAction, getPublicKey } from '@babbage/sdk-ts';
 import pushdrop from 'pushdrop';
-import { encrypt } from '@babbage/sdk-ts';
+import { encrypt, decrypt } from '@babbage/sdk-ts';
 
 type AllowedRoles = 'Manager' | 'Accountant' | 'Staff' | 'Viewer' | 'keyPerson' | 'limitedUser';
 
@@ -386,10 +386,14 @@ const postTransactionEntry = async (data: TransactionData) => {
 
 export const handleInitialTransaction = async (data: TransactionData) => {
   try {
+    // Calculate the initial running total
+    const runningTotal = data.debitAmount + data.creditAmount;
+
     // Encrypt relevant data fields
     const encryptedDescription = await encryptData(data.description);
     const encryptedDebit = await encryptData(data.debitAmount.toString());
     const encryptedCredit = await encryptData(data.creditAmount.toString());
+    const encryptedRunningTotal = await encryptData(runningTotal.toString());
     const encryptedPublicKey = await encryptData(data.userPublicKey);
 
     // Combine all encrypted fields into a single blob
@@ -397,7 +401,8 @@ export const handleInitialTransaction = async (data: TransactionData) => {
       description: encryptedDescription,
       debit: encryptedDebit,
       credit: encryptedCredit,
-      publicKey: encryptedPublicKey
+      runningTotal: encryptedRunningTotal,
+      publicKey: encryptedPublicKey,
     });
 
     // Generate the pushdrop token for the initial transaction entry
@@ -439,6 +444,7 @@ export const handleInitialTransaction = async (data: TransactionData) => {
   }
 };
 
+
 export const getUserEmail = async (publicKey: string): Promise<string | null> => {
   try {
     const response = await axios.get(`http://localhost:5000/api/users/email/${publicKey}`);
@@ -452,9 +458,22 @@ export const getUserEmail = async (publicKey: string): Promise<string | null> =>
 // Helper function to calculate and retrieve the running total for the account entry
 const calculateRunningTotal = async (accountName: string, debitAmount: number, creditAmount: number): Promise<number> => {
   try {
-    // Step 1: Query backend for the basket and last running total of the account
+    // Step 1: Query backend for the last entry's encrypted data and basket
     const response = await axios.get(`http://localhost:5000/api/accounts/last-entry/${accountName}`);
-    const { runningTotal, basket } = response.data;
+    const { encryptedData, basket } = response.data;
+
+    // Initialize running total
+    let runningTotal = 0;
+
+    try {
+      // Parse the encrypted_data JSON string
+      const encryptedFields = JSON.parse(encryptedData);
+
+      // Decrypt the runningTotal
+      runningTotal = Number(await decryptData(encryptedFields.runningTotal));
+    } catch (parseError) {
+      console.error('Error parsing or decrypting runningTotal:', parseError);
+    }
 
     // Step 2: Calculate the new running total based on basket type and amounts
     let newTotal: number;
@@ -471,3 +490,23 @@ const calculateRunningTotal = async (accountName: string, debitAmount: number, c
   }
 };
 
+
+// Decrypt data function
+const decryptData = async (encryptedData: string | undefined): Promise<string> => {
+  if (!encryptedData) {
+    console.warn('Attempting to decrypt empty or undefined data.');
+    return '';
+  }
+  try {
+    const decrypted = await decrypt({
+      ciphertext: encryptedData,
+      protocolID: [0, 'user encryption'],
+      keyID: '1',
+      returnType: 'string',
+    });
+    return typeof decrypted === 'string' ? decrypted : Buffer.from(decrypted).toString('utf8');
+  } catch (error) {
+    console.error('Error decrypting data:', error);
+    return '[Decryption Failed]';
+  }
+};

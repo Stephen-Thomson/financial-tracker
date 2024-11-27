@@ -1,4 +1,4 @@
-import React, { useState, FormEvent, useEffect } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import {
   Button,
   TextField,
@@ -13,40 +13,67 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  SelectChangeEvent
+  SelectChangeEvent,
 } from '@mui/material';
 import { CloudDownload } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { download } from 'nanoseek';
-import constants from '../utils/constants'; // Import the constants
+import axios from 'axios';
 
-interface DownloadInvoicesPageProps {}
+interface UploadedFile {
+  id: number;
+  file_name: string;
+  upload_time: string;
+  expiration_time: string;
+  uhrp_hash: string;
+  public_url: string;
+}
 
-const DownloadInvoicesPage: React.FC<DownloadInvoicesPageProps> = () => {
-  // Initialize overlayServiceURLs and set the default overlayServiceURL from constants
-  const [overlayServiceURL, setOverlayServiceURL] = useState<string>(constants.confederacyURL);
-  const [overlayServiceURLs, setOverlayServiceURLs] = useState<string[]>(constants.confederacyURLs);
-  const [downloadURL, setDownloadURL] = useState<string>('');
+const DownloadInvoicesPage: React.FC = () => {
+  const [overlayServiceURL, setOverlayServiceURL] = useState<string>('https://staging-confederacy.babbage.systems');
+  const [overlayServiceURLs, setOverlayServiceURLs] = useState<string[]>(['https://staging-confederacy.babbage.systems']);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [downloadedFileURL, setDownloadedFileURL] = useState<string | null>(null);
   const [newOption, setNewOption] = useState<string>('');
   const [openDialog, setOpenDialog] = useState<boolean>(false);
 
+  // Fetch the list of uploaded files on page load
   useEffect(() => {
-    // Set initial overlay service URL to the first in the constants array if available
-    if (overlayServiceURLs.length > 0) {
-      setOverlayServiceURL(overlayServiceURLs[0]);
-    }
-  }, [overlayServiceURLs]);
+    const fetchUploadedFiles = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/uploaded-files');
+        setUploadedFiles(response.data);
+        console.log('Uploaded files:', response.data);
+        console.log('Uploaded files const:', uploadedFiles);
+      } catch (error) {
+        console.error('Error fetching uploaded files:', error);
+        toast.error('Failed to load uploaded files.');
+      }
+    };
+
+    fetchUploadedFiles();
+  }, []);
 
   const handleDownload = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!selectedFileId) {
+      toast.error('Please select a file to download.');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Use nanoseek for downloading from UHRP
+      const selectedFile = uploadedFiles.find((file) => file.id === selectedFileId);
+      if (!selectedFile) {
+        toast.error('Selected file not found.');
+        return;
+      }
+
       const { mimeType, data } = await download({
-        UHRPUrl: downloadURL.trim(),
-        confederacyHost: overlayServiceURL.trim()
+        UHRPUrl: selectedFile.uhrp_hash.trim(),
+        confederacyHost: overlayServiceURL.trim(),
       });
 
       const blob = new Blob([data], { type: mimeType });
@@ -54,31 +81,34 @@ const DownloadInvoicesPage: React.FC<DownloadInvoicesPageProps> = () => {
       setDownloadedFileURL(url);
 
       toast.success('File downloaded successfully!');
-    } catch (error) {
+    } catch (error: any) {
       toast.error('Error downloading the file.');
-      console.error('Download error:', error);
+      console.error('Download error:', error.message || error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelectChange = (event: SelectChangeEvent<string>) => {
-    const selectedValue = event.target.value;
-    if (selectedValue === 'add-new-option') {
-      setOpenDialog(true);
-    } else {
-      setOverlayServiceURL(selectedValue);
-    }
-  };
+  const handleSelectFile = (event: SelectChangeEvent<string>) => {
+    const fileId = parseInt(event.target.value, 10); // Convert the string value to a number
+    setSelectedFileId(fileId);
+  };  
 
   const handleAddOption = () => {
-    if (newOption && !overlayServiceURLs.includes(newOption)) {
-      setOverlayServiceURLs([...overlayServiceURLs, newOption]);
-      setOverlayServiceURL(newOption);
+    if (newOption.trim() && !overlayServiceURLs.includes(newOption.trim())) {
+      setOverlayServiceURLs([...overlayServiceURLs, newOption.trim()]);
+      setOverlayServiceURL(newOption.trim());
     }
     setNewOption('');
     setOpenDialog(false);
   };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return !isNaN(date.getTime())
+      ? date.toLocaleString()
+      : "Invalid Date";
+  };  
 
   return (
     <form onSubmit={handleDownload}>
@@ -86,13 +116,37 @@ const DownloadInvoicesPage: React.FC<DownloadInvoicesPageProps> = () => {
         <Grid item xs={12}>
           <Typography variant="h4">Download Invoices</Typography>
           <Typography color="textSecondary">
-            Enter the UHRP URL of the invoice and select an overlay service to download.
+            Select a file and an overlay service to download the invoice.
           </Typography>
         </Grid>
+
+        {/* File Selection */}
+        <Grid item xs={12}>
+          <FormControl fullWidth variant="outlined">
+            <InputLabel>Select File</InputLabel>
+            <Select
+              value={selectedFileId ? selectedFileId.toString() : ''}
+              onChange={(event: SelectChangeEvent<string>) => handleSelectFile(event)}
+              label="Select File"
+            >
+              {uploadedFiles.map((file) => (
+                <MenuItem key={file.id} value={file.id.toString()}>
+                  {file.file_name} - {formatDate(file.upload_time)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+
+        {/* Overlay Service Selection */}
         <Grid item xs={12}>
           <FormControl fullWidth variant="outlined">
             <InputLabel>Overlay Service URL</InputLabel>
-            <Select value={overlayServiceURL} onChange={handleSelectChange} label="Overlay Service URL">
+            <Select
+              value={overlayServiceURL}
+              onChange={(e) => setOverlayServiceURL(e.target.value as string)}
+              label="Overlay Service URL"
+            >
               {overlayServiceURLs.map((url, index) => (
                 <MenuItem key={index} value={url}>
                   {url}
@@ -102,28 +156,23 @@ const DownloadInvoicesPage: React.FC<DownloadInvoicesPageProps> = () => {
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            variant="outlined"
-            label="UHRP URL"
-            value={downloadURL}
-            onChange={(e) => setDownloadURL(e.target.value)}
-          />
-        </Grid>
+
+        {/* Download Button */}
         <Grid item xs={12}>
           <Button
             variant="contained"
             color="primary"
             size="large"
             type="submit"
-            disabled={loading || !downloadURL || !overlayServiceURL}
+            disabled={loading || !selectedFileId}
             startIcon={<CloudDownload />}
           >
             Download
           </Button>
           {loading && <LinearProgress />}
         </Grid>
+
+        {/* Downloaded File Preview */}
         {downloadedFileURL && (
           <Grid item xs={12}>
             <Typography variant="h6">Downloaded File:</Typography>
@@ -132,7 +181,7 @@ const DownloadInvoicesPage: React.FC<DownloadInvoicesPageProps> = () => {
         )}
       </Grid>
 
-      {/* Dialog for adding a new overlay service URL */}
+      {/* Dialog for Adding Overlay Service URL */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
         <DialogTitle>Add Overlay Service URL</DialogTitle>
         <DialogContent>

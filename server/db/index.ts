@@ -85,6 +85,18 @@ const initializeDatabase = async () => {
       );
     `);
 
+    // Create uploaded_files table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS uploaded_files (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        file_name VARCHAR(255) NOT NULL,
+        upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expiration_time TIMESTAMP NOT NULL,
+        uhrp_hash VARCHAR(255) NOT NULL,
+        public_url TEXT NOT NULL
+      );
+    `);
+
     console.log('Database and tables initialized successfully');
     connection.end();
   } catch (error) {
@@ -389,13 +401,17 @@ export const addMessage = async (
   }
 };
 
-// Retrieve messages for a user
+/// Retrieve messages for a user
 export const getMessagesForUser = async (recipientPublicKey: string) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM messages WHERE recipient_public_key = ?',
       [recipientPublicKey]
     );
+    if (!rows || rows.length === 0) {
+      console.log(`No messages found for user ${recipientPublicKey}`);
+      return []; // Return an empty array when no messages exist
+    }
     console.log(`Messages retrieved for user ${recipientPublicKey}`);
     return rows;
   } catch (error) {
@@ -489,6 +505,7 @@ export const getPaymentTokenByTxid = async (txid: string) => {
 export const getAccounts = async () => {
   try {
     const [rows] = await pool.query('SELECT id, name, basket FROM accounts');
+    return rows;
   } catch (error) {
     console.error('Error retrieving accounts:', error);
     throw error;
@@ -546,6 +563,41 @@ export const checkGeneralJournalFirstEntry = async () => {
     throw error;
   }
 };
+
+// Function for adding an uploaded file to the database
+export const addUploadedFile = async (
+  fileName: string,
+  uploadTime: Date,
+  expirationTime: Date,
+  uhrpHash: string,
+  publicUrl: string
+) => {
+  try {
+    await pool.query(`
+      INSERT INTO uploaded_files (file_name, upload_time, expiration_time, uhrp_hash, public_url)
+      VALUES (?, ?, ?, ?, ?)
+    `, [fileName, uploadTime, expirationTime, uhrpHash, publicUrl]);
+    console.log(`File "${fileName}" added to the uploaded_files table.`);
+  } catch (error) {
+    console.error('Error adding file to uploaded_files table:', error);
+    throw error;
+  }
+};
+
+// Function to retrieve all uploaded files
+export const getAllUploadedFiles = async () => {
+  try {
+    const [rows]: [RowDataPacket[], any] = await pool.query(`
+      SELECT * FROM uploaded_files
+    `);
+    console.log('Retrieved all uploaded files:', rows);
+    return rows;
+  } catch (error) {
+    console.error('Error retrieving uploaded files:', error);
+    throw error;
+  }
+};
+
 
 // Call the function to initialize the database when the program starts
 initializeDatabase().catch((err) => console.error('Failed to initialize database', err));

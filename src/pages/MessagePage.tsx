@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Button, TextField, List, ListItem, ListItemText, Dialog,
+import {
+  Button, TextField, List, ListItem, ListItemText, Dialog,
   DialogTitle, DialogContent, DialogActions, MenuItem, Select,
-  FormControl, InputLabel, SelectChangeEvent } from '@mui/material';
+  FormControl, InputLabel, SelectChangeEvent
+} from '@mui/material';
 import axios from 'axios';
 import { getPublicKey } from '@babbage/sdk-ts';
 const Tokenator = require('@babbage/tokenator');
@@ -20,7 +22,7 @@ interface Message {
 
 interface User {
   email: string;
-  publicKey: string;
+  public_key: string;
   role: string;
 }
 
@@ -31,30 +33,22 @@ const MessagePage: React.FC = () => {
   const [newRequestPurpose, setNewRequestPurpose] = useState<string>('');
   const [isRequestFormOpen, setIsRequestFormOpen] = useState<boolean>(false);
   const [isReplyDialogOpen, setIsReplyDialogOpen] = useState<boolean>(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
   const [userPublicKey, setUserPublicKey] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedRecipientKey, setSelectedRecipientKey] = useState<string | null>(null);
 
-  // Fetch user's public key and role on component mount
+  // Fetch user's public key on component mount
   useEffect(() => {
-    const fetchUserRole = async () => {
+    const fetchUserPublicKey = async () => {
       try {
         const publicKey = await getPublicKey({ reason: 'Retrieve Key for Messages', identityKey: true });
         setUserPublicKey(publicKey);
-
-        const response = await axios.get(`http://localhost:5000/api/users/role/${publicKey}`);
-        if (response.status === 200) {
-          setUserRole(response.data.role);
-        } else {
-          setUserRole('Staff');
-        }
       } catch (error) {
-        console.error('Error fetching user role:', error);
+        console.error('Error fetching user public key:', error);
       }
     };
 
-    fetchUserRole();
+    fetchUserPublicKey();
   }, []);
 
   // Fetch users list for recipient selection
@@ -62,14 +56,24 @@ const MessagePage: React.FC = () => {
     const loadUsers = async () => {
       try {
         const response = await axios.get('http://localhost:5000/api/users');
-        setUsers(response.data);
+        console.log('Users API response:', response.data); // Log the full API response
+  
+        if (response.data && Array.isArray(response.data.members)) {
+          setUsers(response.data.members); // Set the users to the members array
+        } else {
+          console.warn('Users API did not return the expected members array:', response.data);
+          setUsers([]); // Fallback to an empty array
+        }
       } catch (error) {
         console.error('Error loading users:', error);
+        setUsers([]); // Ensure `users` is always an array
       }
     };
-
+  
     loadUsers();
   }, []);
+  
+  
 
   // Fetch messages on component mount
   useEffect(() => {
@@ -90,31 +94,24 @@ const MessagePage: React.FC = () => {
 
   const fetchMessagesFromPeerServ = async (): Promise<Message[]> => {
     try {
-      // Fetch messages from the specified message box
-      const inboxMessages: { messageId: number; body: string; sender: string; created_at: string }[] =
-        await tokenator.listMessages({ messageBox: 'payment_requests' });
-  
+      const inboxMessages: Array<{
+        messageId: number;
+        body: string;
+        sender: string;
+        created_at: string;
+      }> = await tokenator.listMessages({ messageBox: 'payment_requests' });
+
       if (inboxMessages.length > 0) {
-        // Log messages to console for debugging
-        inboxMessages.forEach((message) => {
-          console.log('Message ID:', message.messageId);
-          console.log('Message Content:', message.body);
-        });
-  
-        // Map to our Message interface structure
-        const formattedMessages: Message[] = inboxMessages.map((msg) => ({
+        return inboxMessages.map((msg) => ({
           id: msg.messageId,
           senderPublicKey: msg.sender,
-          recipientPublicKey: '', // If not provided, leave as empty or adjust as needed
+          recipientPublicKey: '',
           messageBody: msg.body,
-          messageType: 'notification', // Adjust if type is retrievable
-          status: 'pending', // Adjust if status is retrievable
+          messageType: 'notification',
+          status: 'pending',
           createdAt: msg.created_at,
         }));
-  
-        return formattedMessages;
       } else {
-        console.log('No messages in the inbox.');
         return [];
       }
     } catch (error) {
@@ -122,36 +119,30 @@ const MessagePage: React.FC = () => {
       return [];
     }
   };
-  
+
   const handleNewRequestSubmit = async () => {
     if (!userPublicKey || !selectedRecipientKey) {
       console.error('User or recipient public key is missing.');
       return;
     }
-  
+
     try {
-      // Initialize Tokenator instance
       const tokenator = new Tokenator({
-        peerServHost: 'https://staging-peerserv.babbage.systems'
+        peerServHost: 'https://staging-peerserv.babbage.systems',
       });
-  
-      // Define the message content
+
       const messageContent = {
-        recipient: selectedRecipientKey, // Public key of the recipient
-        messageBox: 'payment_requests', // Define a messageBox for categorizing
+        recipient: selectedRecipientKey,
+        messageBox: 'payment_requests',
         body: {
           amount: newRequestAmount,
           purpose: newRequestPurpose,
           sender: userPublicKey,
-          type: 'request'
-        }
+          type: 'request',
+        },
       };
-  
-      // Send the message
-      const result = await tokenator.sendMessage(messageContent);
-      console.log('Message sent successfully:', result);
-  
-      // Clear the form inputs after submission
+
+      await tokenator.sendMessage(messageContent);
       setNewRequestAmount(0);
       setNewRequestPurpose('');
       setIsRequestFormOpen(false);
@@ -159,173 +150,206 @@ const MessagePage: React.FC = () => {
       console.error('Error sending message:', error);
     }
   };
-  
-  // Set up the PushDropTokenator instance
-  const pushDropTokenator = new PushDropTokenator({
-    peerServHost: 'https://staging-peerserv.babbage.systems',
-    defaultTokenValue: 1,
-    protocolID: 'paymentProtocol',
-    protocolKeyID: 1,
-    protocolBasketName: 'paymentRequests',
-    protocolMessageBox: 'payment_requests_inbox',
-    protocolAddress: 'UNIQUE_PROTOCOL_ADDRESS' // Replace with actual address as needed
-  });
 
-  const handleApproveRequest = async (recipientPublicKey: string, amount: number, purpose: string) => {
-    try {
-      const tokenator = new PushDropTokenator({
-        peerServHost: 'https://staging-peerserv.babbage.systems',
-        defaultTokenValue: amount,
-        protocolID: 'paymentProtocol',
-        protocolKeyID: 1,
-        protocolBasketName: 'paymentRequests',
-        protocolMessageBox: 'payment_approvals',
-        protocolAddress: recipientPublicKey
-      });
+    // Set up the PushDropTokenator instance
+    const pushDropTokenator = new PushDropTokenator({
+      peerServHost: 'https://staging-peerserv.babbage.systems',
+      defaultTokenValue: 1,
+      protocolID: 'paymentProtocol',
+      protocolKeyID: 1,
+      protocolBasketName: 'paymentRequests',
+      protocolMessageBox: 'payment_requests_inbox',
+      protocolAddress: 'UNIQUE_PROTOCOL_ADDRESS'
+    });
   
-      await tokenator.sendPushDropToken({
-        recipient: recipientPublicKey,
-        title: 'Payment Approval',
-        contents: `Purpose: ${purpose}`,
-        htmlCode: `<html><body><h1>Approval for ${amount}</h1><p>Purpose: ${purpose}</p></body></html>`
-      });
-  
-      console.log(`Approval token sent successfully to ${recipientPublicKey}`);
-    } catch (error) {
-      console.error('Error sending approval token:', error);
-    }
-  };
-  
-
-  const handleSelectMessage = (message: Message) => {
-    setSelectedMessage(message);
-    setIsReplyDialogOpen(true);
-  };
-
-  const handleReplySubmit = async (isApproved: boolean) => {
-    if (isApproved && selectedMessage) {
+    const handleApproveRequest = async (recipientPublicKey: string, amount: number, purpose: string) => {
       try {
-        // Call handleApproveRequest to create and send the PushDrop token
-        await handleApproveRequest(
-          selectedMessage.senderPublicKey, // Assuming sender is the recipient for the token
-          newRequestAmount,
-          newRequestPurpose
-        );
-  
-        console.log('Approval token sent successfully');
-      } catch (error) {
-        console.error('Error approving request and sending token:', error);
-      }
-    } else if (selectedMessage) {
-      try {
-        // Send a denial notification using Tokenator
-        const denialNotification = {
-          recipient: selectedMessage.senderPublicKey, // Send back to the original sender
-          messageBox: 'notifications_inbox',
-          body: `Your payment request for ${newRequestAmount} was denied. Reason: [Specify reason if needed]`
-        };
-  
-        const result = await tokenator.sendMessage(denialNotification);
-        console.log('Denial notification sent successfully:', result);
-      } catch (error) {
-        console.error('Error sending denial notification:', error);
-      }
-    }
+        const tokenator = new PushDropTokenator({
+          peerServHost: 'https://staging-peerserv.babbage.systems',
+          defaultTokenValue: 1,
+          protocolID: 'paymentProtocol',
+          protocolKeyID: 1,
+          protocolBasketName: 'paymentRequests',
+          protocolMessageBox: 'payment_approvals',
+          protocolAddress: recipientPublicKey,
+        });
     
-    // Close the reply dialog after handling the response
-    setIsReplyDialogOpen(false);
-  };
+        await tokenator.sendPushDropToken({
+          recipient: recipientPublicKey,
+          title: 'Payment Approval',
+          contents: `Purpose: ${purpose}`,
+          htmlCode: `<html><body><h1>Approval for ${amount}</h1><p>Purpose: ${purpose}</p></body></html>`,
+          satoshis: 1,
+        });
+    
+        console.log(`Approval token sent successfully to ${recipientPublicKey}`);
+      } catch (error) {
+        console.error('Error sending approval token:', error);
+      }
+    };
+    
+    
+  
+    const handleSelectMessage = (message: Message) => {
+      setSelectedMessage(message);
+      setIsReplyDialogOpen(true);
+    };
+    
+    const parseMessageBody = (messageBody: string) => {
+      try {
+        const parsed = JSON.parse(messageBody);
+        return {
+          amount: parsed.amount || '[Unknown Amount]',
+          purpose: parsed.purpose || '[Unknown Purpose]',
+        };
+      } catch {
+        // Fallback for non-JSON message bodies
+        return {
+          amount: '[Unknown Amount]',
+          purpose: messageBody || '[No Details]',
+        };
+      }
+    };
+  
+    const handleReplySubmit = async (isApproved: boolean) => {
+      if (isApproved && selectedMessage) {
+        try {
+          // Call handleApproveRequest to create and send the PushDrop token
+          await handleApproveRequest(
+            selectedMessage.senderPublicKey,
+            newRequestAmount,
+            newRequestPurpose
+          );
+    
+          console.log('Approval token sent successfully');
+        } catch (error) {
+          console.error('Error approving request and sending token:', error);
+        }
+      } else if (selectedMessage) {
+        try {
+          // Send a denial notification using Tokenator
+          const denialNotification = {
+            recipient: selectedMessage.senderPublicKey, // Send back to the original sender
+            messageBox: 'notifications_inbox',
+            body: `Your payment request for ${newRequestAmount} was denied. Reason: [Specify reason if needed]`
+          };
+    
+          const result = await tokenator.sendMessage(denialNotification);
+          console.log('Denial notification sent successfully:', result);
+        } catch (error) {
+          console.error('Error sending denial notification:', error);
+        }
+      }
+      
+      // Close the reply dialog after handling the response
+      setIsReplyDialogOpen(false);
+    };
 
-  // Handle selecting a recipient from the dropdown
   const handleRecipientSelect = (event: SelectChangeEvent<string>) => {
-    const selectedEmail = event.target.value;
-    const recipient = users.find(user => user.email === selectedEmail);
-    if (recipient) {
-      setSelectedRecipientKey(recipient.publicKey);
-    }
+    console.log('Selected recipient:', event.target.value);
+    const selectedPublicKey = event.target.value;
+    setSelectedRecipientKey(selectedPublicKey);
+    console.log('Selected recipient key:', selectedPublicKey);
   };
+  
 
   return (
     <div>
       <h1>Messages</h1>
-
-      {/* Message List */}
-      <List>
-        {messages.map((message) => (
-          <ListItem key={message.id} onClick={() => handleSelectMessage(message)}>
-            <Button fullWidth>
-              <ListItemText primary={message.messageType} secondary={message.messageBody} />
-            </Button>
-          </ListItem>
-        ))}
-      </List>
-
-      {/* New Request Form (Staff Only) */}
-      {userRole === 'Staff' && (
-        <div>
-          <Button variant="contained" onClick={() => setIsRequestFormOpen(true)}>
-            New Request
-          </Button>
-          <Dialog open={isRequestFormOpen} onClose={() => setIsRequestFormOpen(false)}>
-            <DialogTitle>New Payment Request</DialogTitle>
-            <DialogContent>
-              <FormControl fullWidth>
-                <InputLabel>Select Recipient</InputLabel>
-                <Select value={selectedRecipientKey || ''} onChange={handleRecipientSelect} displayEmpty>
-                  <MenuItem value="" disabled>Select Recipient</MenuItem>
-                  {users.map((user) => (
-                    <MenuItem key={user.publicKey} value={user.email}>
-                      {user.email}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <TextField
-                label="Amount"
-                type="number"
-                fullWidth
-                value={newRequestAmount}
-                onChange={(e) => setNewRequestAmount(Number(e.target.value))}
-              />
-              <TextField
-                label="Purpose"
-                fullWidth
-                value={newRequestPurpose}
-                onChange={(e) => setNewRequestPurpose(e.target.value)}
-              />
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setIsRequestFormOpen(false)}>Cancel</Button>
-              <Button onClick={handleNewRequestSubmit} variant="contained">
-                Submit Request
+  
+      {messages.length > 0 ? (
+        <List>
+          {messages.map((message) => (
+            <ListItem
+              key={message.id}
+              onClick={() => {
+                setSelectedMessage(message);
+                setIsReplyDialogOpen(true);
+              }}
+            >
+              <Button fullWidth>
+                <ListItemText primary={message.messageType} secondary={message.messageBody} />
               </Button>
-            </DialogActions>
-          </Dialog>
-        </div>
+            </ListItem>
+          ))}
+        </List>
+      ) : (
+        <p>No messages available.</p>
       )}
 
-      {/* Approval/Reply Dialog (Manager/Key Person Only) */}
-      {userRole === 'Manager' || userRole === 'KeyPerson' ? (
-        <Dialog open={isReplyDialogOpen} onClose={() => setIsReplyDialogOpen(false)}>
-          <DialogTitle>Respond to Request</DialogTitle>
+
+      <div>
+        <Button variant="contained" onClick={() => setIsRequestFormOpen(true)}>
+          New Request
+        </Button>
+        <Dialog open={isRequestFormOpen} onClose={() => setIsRequestFormOpen(false)}>
+          <DialogTitle>New Payment Request</DialogTitle>
           <DialogContent>
-            {selectedMessage && (
-              <div>
-                <p><strong>Amount:</strong> {selectedMessage.messageBody}</p>
-                <p><strong>Purpose:</strong> {/* Placeholder for purpose text */}</p>
-              </div>
-            )}
+          <FormControl fullWidth>
+            <InputLabel>Select Recipient</InputLabel>
+            <Select
+              value={selectedRecipientKey || ''}
+              onChange={handleRecipientSelect}
+            >
+              <MenuItem value="" disabled>Select Recipient</MenuItem>
+              {users.map((user) => (
+                <MenuItem key={user.public_key} value={user.public_key}>
+                  {user.email}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+            <TextField
+              label="Amount"
+              type="number"
+              fullWidth
+              value={newRequestAmount}
+              onChange={(e) => setNewRequestAmount(Number(e.target.value))}
+            />
+            <TextField
+              label="Purpose"
+              fullWidth
+              value={newRequestPurpose}
+              onChange={(e) => setNewRequestPurpose(e.target.value)}
+            />
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => handleReplySubmit(false)} color="secondary">
-              Deny
-            </Button>
-            <Button onClick={() => handleReplySubmit(true)} color="primary">
-              Approve
+            <Button onClick={() => setIsRequestFormOpen(false)}>Cancel</Button>
+            <Button onClick={handleNewRequestSubmit} variant="contained">
+              Submit Request
             </Button>
           </DialogActions>
         </Dialog>
-      ) : null}
+      </div>
+
+      {/* Approval/Reply Dialog */}
+      <Dialog open={isReplyDialogOpen} onClose={() => setIsReplyDialogOpen(false)}>
+        <DialogTitle>Respond to Request</DialogTitle>
+        <DialogContent>
+          {selectedMessage && (
+            <div>
+              {(() => {
+                const { amount, purpose } = parseMessageBody(selectedMessage.messageBody);
+                return (
+                  <>
+                    <p><strong>Amount:</strong> {amount}</p>
+                    <p><strong>Purpose:</strong> {purpose}</p>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => handleReplySubmit(false)} color="secondary">
+            Deny
+          </Button>
+          <Button onClick={() => handleReplySubmit(true)} color="primary">
+            Approve
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

@@ -17,19 +17,29 @@ interface AccountEntry {
 }
 
 // Decrypt data function
-const decryptData = async (encryptedData: string): Promise<string> => {
-  const decrypted = await decrypt({
-    ciphertext: encryptedData,
-    protocolID: [0, 'user encryption'],
-    keyID: '1',
-    returnType: 'string',
-  });
-  return typeof decrypted === 'string' ? decrypted : Buffer.from(decrypted).toString('utf8');
+const decryptData = async (encryptedData: string | undefined): Promise<string> => {
+  if (!encryptedData) {
+    console.warn('Attempting to decrypt empty or undefined data.');
+    return ''; // Return empty string if the data is invalid
+  }
+  try {
+    const decrypted = await decrypt({
+      ciphertext: encryptedData,
+      protocolID: [0, 'user encryption'],
+      keyID: '1',
+      returnType: 'string',
+    });
+    return typeof decrypted === 'string' ? decrypted : Buffer.from(decrypted).toString('utf8');
+  } catch (error) {
+    console.error('Error decrypting data:', error);
+    return '[Decryption Failed]';
+  }
 };
 
 const ViewAccountPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<number | null>(null);
+  const [selectedAccountName, setSelectedAccountName] = useState<string | null>(null);
   const [accountEntries, setAccountEntries] = useState<AccountEntry[]>([]);
 
   useEffect(() => {
@@ -48,38 +58,61 @@ const ViewAccountPage: React.FC = () => {
     const fetchAccountEntries = async () => {
       if (selectedAccount) {
         try {
-          const response = await axios.get(`http://localhost:5000/api/accounts/${selectedAccount}/entries`);
+          console.log('Fetching account entries for account:', selectedAccountName);
+          const response = await axios.get(`http://localhost:5000/api/accounts/${selectedAccountName}/entries`);
           const encryptedEntries = response.data;
-
+  
+          console.log('Encrypted entries:', encryptedEntries);
+  
           // Decrypt each field in the entry
-          const decryptedEntries = await Promise.all(encryptedEntries.map(async (entry: any) => {
-            const decryptedDescription = await decryptData(entry.description);
-            const decryptedDebit = await decryptData(entry.debit);
-            const decryptedCredit = await decryptData(entry.credit);
-            const decryptedRunningTotal = await decryptData(entry.runningTotal);
-
-            return {
-              ...entry,
-              description: decryptedDescription,
-              debit: decryptedDebit,
-              credit: decryptedCredit,
-              runningTotal: decryptedRunningTotal,
-            };
-          }));
-
+          const decryptedEntries = await Promise.all(
+            encryptedEntries.map(async (entry: any) => {
+              let decryptedDescription = '[No Description]';
+              let decryptedDebit = '0';
+              let decryptedCredit = '0';
+              let decryptedRunningTotal = '0';
+  
+              try {
+                // Parse the encrypted_data JSON string
+                const encryptedData = JSON.parse(entry.encrypted_data);
+  
+                // Decrypt each field
+                decryptedDescription = await decryptData(encryptedData.description);
+                decryptedDebit = await decryptData(encryptedData.debit);
+                decryptedCredit = await decryptData(encryptedData.credit);
+                decryptedRunningTotal = await decryptData(encryptedData.runningTotal);
+              } catch (parseError) {
+                console.error('Error parsing or decrypting entry:', parseError);
+              }
+  
+              return {
+                ...entry,
+                description: decryptedDescription,
+                debit: decryptedDebit,
+                credit: decryptedCredit,
+                runningTotal: decryptedRunningTotal,
+              };
+            })
+          );
+  
           setAccountEntries(decryptedEntries);
         } catch (error) {
           console.error('Error fetching account entries:', error);
         }
       }
     };
-
+  
     fetchAccountEntries();
-  }, [selectedAccount]);
-
+  }, [selectedAccountName]);
+  
   const handleAccountSelect = (event: SelectChangeEvent<number>) => {
-    setSelectedAccount(Number(event.target.value));
+    const accountId = Number(event.target.value);
+    setSelectedAccount(accountId);
     setAccountEntries([]); // Clear previous entries when a new account is selected
+
+    // Set the name of the selected account
+    const account = accounts.find((acc) => acc.id === accountId);
+    setSelectedAccountName(account?.name || null);
   };
 
   return (
@@ -104,7 +137,7 @@ const ViewAccountPage: React.FC = () => {
 
       {selectedAccount && (
         <Grid item xs={12}>
-          <Typography variant="h5" align="center">{accounts.find(acc => acc.id === selectedAccount)?.name}</Typography>
+          <Typography variant="h5" align="center">{selectedAccountName}</Typography>
           
           <TableContainer component={Paper} style={{ marginTop: '20px' }}>
             <Table>

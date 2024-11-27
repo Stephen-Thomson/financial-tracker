@@ -8,7 +8,7 @@ import {
   addMessage, getMessagesForUser, updateMessageStatus,
   addPaymentToken, getPaymentTokensByStatus, updatePaymentTokenStatus,
   getPaymentTokenByTxid, getAccounts, getAccountEntries, getGeneralJournalEntries,
-  getDistinctMonthsForAccount, checkGeneralJournalFirstEntry
+  getDistinctMonthsForAccount, checkGeneralJournalFirstEntry, addUploadedFile, getAllUploadedFiles,
 } from './db';
 
 const app = express();
@@ -33,7 +33,7 @@ app.post('/api/users', async (req, res) => {
 app.get('/api/users', async (req, res) => {
   try {
     const users = await getUsers();
-    res.json(users);
+    res.json({ members: users });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ message: 'Error fetching users' });
@@ -217,16 +217,18 @@ app.post('/api/messages', async (req, res) => {
 });
 
 // Retrieve messages for a specific user
-app.get('/api/messages', async (req, res) => {
-  const { recipient_public_key } = req.query;
+app.get('/api/messages/pending/:recipientPublicKey', async (req, res) => {
+  const { recipientPublicKey } = req.params; // Use params instead of query
   try {
-    const messages = await getMessagesForUser(recipient_public_key as string);
-    res.json(messages);
+    const messages = await getMessagesForUser(recipientPublicKey);
+    const pendingCount = messages.length; // Count the messages
+    res.json({ pendingCount }); // Return the count in the response
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ message: 'Error fetching messages' });
   }
 });
+
 
 // Update message status
 app.patch('/api/messages/:id', async (req, res) => {
@@ -353,4 +355,30 @@ app.get('/api/general-journal/first-entry', async (req, res) => {
     res.status(500).json({ message: 'Error checking first entry in General Journal' });
   }
 });
+
+// Endpoint to add a new uploaded file entry
+app.post('/api/uploaded-files', async (req, res) => {
+  const { fileName, uploadTime, expirationTime, uhrpHash, publicUrl } = req.body;
+
+  try {
+    await addUploadedFile(fileName, new Date(uploadTime), new Date(expirationTime), uhrpHash, publicUrl);
+    res.status(201).json({ message: 'File added successfully.' });
+  } catch (error) {
+    console.error('Error adding file to uploaded_files table:', error);
+    res.status(500).json({ message: 'Error adding file to uploaded_files table.' });
+  }
+});
+
+// Endpoint to retrieve all uploaded files
+app.get('/api/uploaded-files', async (req, res) => {
+  try {
+    const uploadedFiles = await getAllUploadedFiles();
+    res.json(uploadedFiles);
+  } catch (error) {
+    console.error('Error retrieving uploaded files:', error);
+    res.status(500).json({ message: 'Error retrieving uploaded files.' });
+  }
+});
+
+
 

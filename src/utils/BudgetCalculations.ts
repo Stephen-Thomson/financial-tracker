@@ -16,21 +16,23 @@ export const fetchLastEntry = async (accountName: string) => {
   }
 };
 
-// Function to decrypt data using pushdrop
-export const decryptData = async (encryptedData: string): Promise<string> => {
+// Decrypt data function
+const decryptData = async (encryptedData: string | undefined): Promise<string> => {
+  if (!encryptedData) {
+    console.warn('Attempting to decrypt empty or undefined data.');
+    return ''; // Return empty string if the data is invalid
+  }
   try {
     const decrypted = await decrypt({
       ciphertext: encryptedData,
-      protocolID: [0, 'user encryption'], // Use the same protocolID format as during encryption
+      protocolID: [0, 'user encryption'],
       keyID: '1',
       returnType: 'string',
     });
-
-    // Ensure the return type is always a string
     return typeof decrypted === 'string' ? decrypted : Buffer.from(decrypted).toString('utf8');
   } catch (error) {
     console.error('Error decrypting data:', error);
-    throw error;
+    return '[Decryption Failed]';
   }
 };
 
@@ -72,6 +74,11 @@ export const calculateAccountAverage = async (accountName: string): Promise<numb
     const totalMonths = await getTotalMonthsForAccount(accountName);
     const runningTotal = await getDecryptedRunningTotal(accountName);
 
+    if (totalMonths === 0) {
+      console.warn(`No months with entries for account ${accountName}. Returning 0.`);
+      return 0;
+    }
+    
     return runningTotal / totalMonths;
   } catch (error) {
     console.error('Error calculating average monthly balance:', error);

@@ -11,15 +11,24 @@ interface JournalEntry {
   credit: string;
 }
 
-// Decrypt function based on pushdrop
-const decryptData = async (encryptedData: string): Promise<string> => {
-  const decrypted = await decrypt({
-    ciphertext: encryptedData,
-    protocolID: [0, 'user encryption'],
-    keyID: '1',
-    returnType: 'string',
-  });
-  return typeof decrypted === 'string' ? decrypted : Buffer.from(decrypted).toString('utf8');
+// Decrypt data function
+const decryptData = async (encryptedData: string | undefined): Promise<string> => {
+  if (!encryptedData) {
+    console.warn('Attempting to decrypt empty or undefined data.');
+    return '';
+  }
+  try {
+    const decrypted = await decrypt({
+      ciphertext: encryptedData,
+      protocolID: [0, 'user encryption'],
+      keyID: '1',
+      returnType: 'string',
+    });
+    return typeof decrypted === 'string' ? decrypted : Buffer.from(decrypted).toString('utf8');
+  } catch (error) {
+    console.error('Error decrypting data:', error);
+    return '[Decryption Failed]';
+  }
 };
 
 const ViewGeneralJournalPage: React.FC = () => {
@@ -27,33 +36,53 @@ const ViewGeneralJournalPage: React.FC = () => {
 
   useEffect(() => {
     const fetchJournalEntries = async () => {
-      try {
-        const response = await axios.get('http://localhost:5000/api/general-journal');
-        const encryptedEntries = response.data;
+        try {
+            // Fetch encrypted journal entries from the backend
+            const response = await axios.get('http://localhost:5000/api/general-journal');
+            const encryptedEntries = response.data;
 
-        // Decrypt each field in the journal entry
-        const decryptedEntries = await Promise.all(encryptedEntries.map(async (entry: any) => {
-          const decryptedAccountName = await decryptData(entry.accountName);
-          const decryptedDescription = await decryptData(entry.description);
-          const decryptedDebit = await decryptData(entry.debit);
-          const decryptedCredit = await decryptData(entry.credit);
+            console.log('Encrypted journal entries:', encryptedEntries);
 
-          return {
-            accountName: decryptedAccountName,
-            description: decryptedDescription,
-            debit: decryptedDebit,
-            credit: decryptedCredit,
-          };
-        }));
+            // Decrypt each field in the journal entry
+            const decryptedEntries = await Promise.all(
+                encryptedEntries.map(async (entry: any) => {
+                    let decryptedAccountName = '[Unknown Account]';
+                    let decryptedDescription = '[No Description]';
+                    let decryptedDebit = '0';
+                    let decryptedCredit = '0';
 
-        setJournalEntries(decryptedEntries);
-      } catch (error) {
-        console.error('Error fetching journal entries:', error);
-      }
+                    try {
+                        // Parse and decrypt each field
+                        const encryptedData = JSON.parse(entry.encrypted_data);
+
+                        decryptedAccountName = await decryptData(encryptedData.accountName);
+                        decryptedDescription = await decryptData(encryptedData.description);
+                        decryptedDebit = await decryptData(encryptedData.debit);
+                        decryptedCredit = await decryptData(encryptedData.credit);
+                    } catch (decryptError) {
+                        console.error('Error decrypting journal entry:', decryptError);
+                    }
+
+                    return {
+                        ...entry,
+                        accountName: decryptedAccountName,
+                        description: decryptedDescription,
+                        debit: decryptedDebit,
+                        credit: decryptedCredit,
+                    };
+                })
+            );
+
+            // Update state with decrypted journal entries
+            setJournalEntries(decryptedEntries);
+        } catch (error) {
+            console.error('Error fetching journal entries:', error);
+        }
     };
 
     fetchJournalEntries();
-  }, []);
+}, []);
+
 
   return (
     <Grid container spacing={3} justifyContent="center" alignItems="center" style={{ padding: '20px' }}>

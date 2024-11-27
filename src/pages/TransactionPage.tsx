@@ -3,6 +3,12 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { handleTransaction } from '../services/blockchain/blockchain';
 import { getPublicKey } from '@babbage/sdk-ts';
+import axios from 'axios';
+
+interface Account {
+  name: string;
+  basket: string;
+}
 
 const TransactionPage: React.FC = () => {
   const [date, setDate] = useState<Date>(new Date());
@@ -13,23 +19,41 @@ const TransactionPage: React.FC = () => {
   const [creditAmount, setCreditAmount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [userPublicKey, setUserPublicKey] = useState<string>('');
+  const [accounts, setAccounts] = useState<Account[]>([]); // Accounts for dropdown
 
-  // Fetch user's public key when the page loads
+  // Fetch user's public key and accounts when the page loads
   useEffect(() => {
-    const fetchPublicKey = async () => {
-      const publicKey = await getPublicKey({ reason: 'Transaction authorization', identityKey: true });
-      setUserPublicKey(publicKey || ''); // Set a default empty string if publicKey is undefined
+    const fetchData = async () => {
+      try {
+        const publicKey = await getPublicKey({ reason: 'Transaction authorization', identityKey: true });
+        setUserPublicKey(publicKey || '');
+
+        // Fetch all accounts
+        const response = await axios.get('http://localhost:5000/api/accounts');
+        console.log(response);
+        if (response.status === 200) {
+          setAccounts(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
     };
-    fetchPublicKey();
+
+    fetchData();
   }, []);
 
   // Handle transaction submission
   const handleSubmit = async () => {
+    if (debitAmount !== creditAmount) {
+      alert('Debit and Credit amounts must match.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Prepare date in required format
       const formattedDate = date.toISOString().split('T')[0];
-      
+
       // Prepare entries for debit and credit transactions
       const debitEntry = {
         accountName: accountDebit,
@@ -60,15 +84,14 @@ const TransactionPage: React.FC = () => {
       setDescription('');
       setDebitAmount(0);
       setCreditAmount(0);
-      alert("Transaction successfully recorded.");
+      alert('Transaction successfully recorded.');
     } catch (error) {
-      alert("Error recording transaction. Please check input and try again.");
+      alert('Error recording transaction. Please check input and try again.');
       console.error(error);
     } finally {
       setIsLoading(false);
     }
   };
-
 
   return (
     <div className="transaction-page">
@@ -76,27 +99,28 @@ const TransactionPage: React.FC = () => {
 
       {/* Transaction Date */}
       <label>Date:</label>
-      <DatePicker
-        selected={date}
-        onChange={(date: Date | null) => date && setDate(date)}
-      />
+      <DatePicker selected={date} onChange={(date: Date | null) => date && setDate(date)} />
 
       {/* Debit Account Selection */}
       <label>Debit Account:</label>
       <select value={accountDebit} onChange={(e) => setAccountDebit(e.target.value)}>
         <option value="" disabled>Select Account</option>
-        <option value="cash">Cash</option>
-        <option value="inventory">Inventory</option>
-        {/* Add more accounts as needed */}
+        {accounts.map((account) => (
+          <option key={account.name} value={account.name}>
+            {account.name} ({account.basket})
+          </option>
+        ))}
       </select>
 
       {/* Credit Account Selection */}
       <label>Credit Account:</label>
       <select value={accountCredit} onChange={(e) => setAccountCredit(e.target.value)}>
         <option value="" disabled>Select Account</option>
-        <option value="revenue">Revenue</option>
-        <option value="accounts_payable">Accounts Payable</option>
-        {/* Add more accounts as needed */}
+        {accounts.map((account) => (
+          <option key={account.name} value={account.name}>
+            {account.name} ({account.basket})
+          </option>
+        ))}
       </select>
 
       {/* Transaction Description */}
