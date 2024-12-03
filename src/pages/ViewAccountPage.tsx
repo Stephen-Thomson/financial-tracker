@@ -1,13 +1,57 @@
+/**
+ * File: ViewAccountPage.tsx
+ * Author: Stephen Thomson
+ * Date Created: 11/30/2024
+ * Description:
+ * This component allows users to view account entries for a selected account. The data is fetched
+ * from the backend, and encrypted entries are decrypted before being displayed in a table.
+ *
+ * Functionalities:
+ * - Fetches a list of available accounts from the backend.
+ * - Allows users to select an account to view its entries.
+ * - Fetches and decrypts account entries for the selected account.
+ * - Displays decrypted account entries in a tabular format.
+ *
+ * Dependencies:
+ * - React: For building the UI.
+ * - @mui/material: For UI components.
+ * - axios: For making HTTP requests to the backend.
+ * - @babbage/sdk-ts: For decrypting encrypted data.
+ */
+
 import React, { useState, useEffect } from 'react';
-import { FormControl, InputLabel, MenuItem, Select, SelectChangeEvent, Typography, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import {
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
+  Typography,
+  Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+} from '@mui/material';
 import axios from 'axios';
 import { decrypt } from '@babbage/sdk-ts';
 
+/**
+ * Interface: Account
+ * Represents the structure of an account object.
+ */
 interface Account {
   id: number;
   name: string;
 }
 
+/**
+ * Interface: AccountEntry
+ * Represents the structure of an account entry.
+ */
 interface AccountEntry {
   date: string;
   description: string;
@@ -16,7 +60,12 @@ interface AccountEntry {
   runningTotal: string;
 }
 
-// Decrypt data function
+/**
+ * Function: decryptData
+ * Description:
+ * Decrypts encrypted data using the Babbage SDK.
+ * Returns the decrypted string or a fallback message if decryption fails.
+ */
 const decryptData = async (encryptedData: string | undefined): Promise<string> => {
   if (!encryptedData) {
     console.warn('Attempting to decrypt empty or undefined data.');
@@ -36,12 +85,23 @@ const decryptData = async (encryptedData: string | undefined): Promise<string> =
   }
 };
 
+/**
+ * Component: ViewAccountPage
+ * Description:
+ * Displays account entries for a selected account. Allows users to select an account and view its
+ * entries after decrypting the data.
+ */
 const ViewAccountPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<number | null>(null);
   const [selectedAccountName, setSelectedAccountName] = useState<string | null>(null);
   const [accountEntries, setAccountEntries] = useState<AccountEntry[]>([]);
 
+  /**
+   * Effect: Fetch Accounts
+   * Description:
+   * Fetches the list of accounts from the backend and stores them in state.
+   */
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
@@ -54,6 +114,11 @@ const ViewAccountPage: React.FC = () => {
     fetchAccounts();
   }, []);
 
+  /**
+   * Effect: Fetch Account Entries
+   * Description:
+   * Fetches and decrypts the entries for the selected account from the backend.
+   */
   useEffect(() => {
     const fetchAccountEntries = async () => {
       if (selectedAccount) {
@@ -61,9 +126,9 @@ const ViewAccountPage: React.FC = () => {
           console.log('Fetching account entries for account:', selectedAccountName);
           const response = await axios.get(`http://localhost:5000/api/accounts/${selectedAccountName}/entries`);
           const encryptedEntries = response.data;
-  
+
           console.log('Encrypted entries:', encryptedEntries);
-  
+
           // Decrypt each field in the entry
           const decryptedEntries = await Promise.all(
             encryptedEntries.map(async (entry: any) => {
@@ -71,11 +136,11 @@ const ViewAccountPage: React.FC = () => {
               let decryptedDebit = '0';
               let decryptedCredit = '0';
               let decryptedRunningTotal = '0';
-  
+
               try {
                 // Parse the encrypted_data JSON string
                 const encryptedData = JSON.parse(entry.encrypted_data);
-  
+
                 // Decrypt each field
                 decryptedDescription = await decryptData(encryptedData.description);
                 decryptedDebit = await decryptData(encryptedData.debit);
@@ -84,7 +149,7 @@ const ViewAccountPage: React.FC = () => {
               } catch (parseError) {
                 console.error('Error parsing or decrypting entry:', parseError);
               }
-  
+
               return {
                 ...entry,
                 description: decryptedDescription,
@@ -94,17 +159,22 @@ const ViewAccountPage: React.FC = () => {
               };
             })
           );
-  
+
           setAccountEntries(decryptedEntries);
         } catch (error) {
           console.error('Error fetching account entries:', error);
         }
       }
     };
-  
+
     fetchAccountEntries();
   }, [selectedAccountName]);
-  
+
+  /**
+   * Function: handleAccountSelect
+   * Description:
+   * Handles the selection of an account from the dropdown. Updates the state with the selected account.
+   */
   const handleAccountSelect = (event: SelectChangeEvent<number>) => {
     const accountId = Number(event.target.value);
     setSelectedAccount(accountId);
@@ -121,6 +191,7 @@ const ViewAccountPage: React.FC = () => {
         <Typography variant="h4" align="center">View Account</Typography>
       </Grid>
 
+      {/* Account Selection Dropdown */}
       <Grid item xs={12}>
         <FormControl fullWidth>
           <InputLabel>Select Account</InputLabel>
@@ -135,10 +206,11 @@ const ViewAccountPage: React.FC = () => {
         </FormControl>
       </Grid>
 
+      {/* Account Entries Table */}
       {selectedAccount && (
         <Grid item xs={12}>
           <Typography variant="h5" align="center">{selectedAccountName}</Typography>
-          
+
           <TableContainer component={Paper} style={{ marginTop: '20px' }}>
             <Table>
               <TableHead>

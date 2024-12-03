@@ -1,3 +1,25 @@
+/**
+ * File: UploadInvoicesPage.tsx
+ * Author: Stephen Thomson
+ * Date Created: 11/30/2024
+ * Description:
+ * This component provides an interface for uploading invoices or receipts to NanoStore for secure 
+ * storage. The user can select a file, specify the retention duration, and securely upload the file. 
+ * Upon successful upload, the file's details are saved in the backend database.
+ *
+ * Functionalities:
+ * - Allows users to upload files to NanoStore.
+ * - Supports retention durations from 3 hours to 3 months.
+ * - Tracks and displays upload progress.
+ * - Saves file metadata (UHRP hash, public URL, etc.) to the backend.
+ *
+ * Dependencies:
+ * - React: For building the UI.
+ * - @mui/material: For UI components.
+ * - nanostore-publisher: For uploading files to NanoStore.
+ * - axios: For making HTTP requests to the backend.
+ */
+
 import React, { useState, ChangeEvent, FormEvent, useEffect } from 'react';
 import {
   Button,
@@ -12,9 +34,14 @@ import {
 } from '@mui/material';
 import { CloudUpload } from '@mui/icons-material';
 import { publishFile } from 'nanostore-publisher';
-import constants from '../utils/constants';
 import axios from 'axios';
 
+/**
+ * Component: UploadInvoicesPage
+ * Description:
+ * Provides a form for users to upload invoices or receipts to NanoStore. The component handles file
+ * selection, upload progress tracking, and saving file metadata to the backend.
+ */
 const UploadInvoicesPage: React.FC = () => {
   const nanostoreURL = 'https://staging-nanostore.babbage.systems';
   const [hostingMinutes, setHostingMinutes] = useState<number>(180); // Default to 3 hours
@@ -24,11 +51,20 @@ const UploadInvoicesPage: React.FC = () => {
   const [uploadResult, setUploadResult] = useState<{ hash: string; publicURL: string } | null>(null);
   const [isFormValid, setIsFormValid] = useState<boolean>(false);
 
-  // Validate form inputs before enabling upload button
+  /**
+   * Effect: Validate Form
+   * Description:
+   * Ensures the form is valid by checking if all required inputs are provided.
+   */
   useEffect(() => {
     setIsFormValid(!!file && hostingMinutes >= 180 && nanostoreURL.trim() !== '');
   }, [file, hostingMinutes, nanostoreURL]);
 
+  /**
+   * Function: handleFileChange
+   * Description:
+   * Handles file selection from the file input field.
+   */
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
     if (selectedFiles && selectedFiles.length > 0) {
@@ -38,6 +74,11 @@ const UploadInvoicesPage: React.FC = () => {
     }
   };
 
+  /**
+   * Function: handleUpload
+   * Description:
+   * Uploads the selected file to NanoStore and saves file details to the backend database.
+   */
   const handleUpload = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!file || !isFormValid) return;
@@ -85,13 +126,14 @@ const UploadInvoicesPage: React.FC = () => {
   };
 
   return (
-    <form onSubmit={handleUpload}>
+    <div style={{ marginTop: '60px' }}>
       <Grid container spacing={3}>
+        {/* Page Header */}
         <Grid item xs={12}>
           <Typography variant="h4">Upload Invoice or Receipt</Typography>
           <Typography color="textSecondary">Upload files to NanoStore for secure storage.</Typography>
         </Grid>
-
+  
         {/* Retention Duration Selection */}
         <Grid item xs={12}>
           <FormControl fullWidth variant="outlined">
@@ -109,33 +151,33 @@ const UploadInvoicesPage: React.FC = () => {
             </Select>
           </FormControl>
         </Grid>
-
+  
         {/* File Input */}
         <Grid item xs={12}>
-          <input type="file" onChange={handleFileChange} />
+          <form onSubmit={handleUpload}> {/* Wrap only the file input and submit button */}
+            <input type="file" onChange={handleFileChange} />
+            {/* Upload Progress */}
+            {isUploading && (
+              <div style={{ margin: '20px 0' }}>
+                <LinearProgress variant="determinate" value={uploadProgress} />
+              </div>
+            )}
+            {/* Submit Button */}
+            <div style={{ marginTop: '20px' }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                type="submit"
+                disabled={!isFormValid || isUploading}
+                startIcon={<CloudUpload />}
+              >
+                Upload
+              </Button>
+            </div>
+          </form>
         </Grid>
-
-        {/* Upload Progress */}
-        {isUploading && (
-          <Grid item xs={12}>
-            <LinearProgress variant="determinate" value={uploadProgress} />
-          </Grid>
-        )}
-
-        {/* Submit Button */}
-        <Grid item xs={12}>
-          <Button
-            variant="contained"
-            color="primary"
-            size="large"
-            type="submit"
-            disabled={!isFormValid || isUploading}
-            startIcon={<CloudUpload />}
-          >
-            Upload
-          </Button>
-        </Grid>
-
+  
         {/* Upload Result */}
         {uploadResult && (
           <Grid item xs={12}>
@@ -150,8 +192,8 @@ const UploadInvoicesPage: React.FC = () => {
           </Grid>
         )}
       </Grid>
-    </form>
-  );
+    </div>
+  );  
 };
 
 export default UploadInvoicesPage;

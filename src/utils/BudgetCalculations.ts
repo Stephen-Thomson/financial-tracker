@@ -1,8 +1,31 @@
+/**
+ * File: BudgetCalculations.ts
+ * Author: Stephen Thomson
+ * Date Created: 11/30/2024
+ * Description:
+ * This file contains utility functions for financial calculations such as average monthly balances,
+ * liabilities, and decryption of encrypted data for budget tracking purposes.
+ *
+ * Functionalities:
+ * - Fetch and decrypt the last running total of an account.
+ * - Calculate the average monthly balance and liabilities for accounts.
+ * - Fetch distinct months with account entries to determine the duration of account activity.
+ */
+
+// Import dependencies
 import axios from 'axios';
 import { decrypt } from '@babbage/sdk-ts';
 
-// Function to fetch the last entry's encrypted data and basket from the backend
-export const fetchLastEntry = async (accountName: string) => {
+/**
+ * Function: fetchLastEntry
+ * Description:
+ * Fetches the last entry's encrypted data for a specified account from the backend.
+ * Throws an error if no entries are found for the account.
+ *
+ * @param {string} accountName - The name of the account.
+ * @returns {Promise<string>} - Encrypted data from the last entry.
+ */
+export const fetchLastEntry = async (accountName: string): Promise<string> => {
   try {
     const response = await axios.get(`http://localhost:5000/api/accounts/last-entry/${accountName}`);
     if (response.data) {
@@ -16,11 +39,19 @@ export const fetchLastEntry = async (accountName: string) => {
   }
 };
 
-// Decrypt data function
+/**
+ * Function: decryptData
+ * Description:
+ * Decrypts the provided encrypted data using the Babbage SDK.
+ * Returns a fallback string if decryption fails.
+ *
+ * @param {string | undefined} encryptedData - The encrypted data to decrypt.
+ * @returns {Promise<string>} - The decrypted string.
+ */
 const decryptData = async (encryptedData: string | undefined): Promise<string> => {
   if (!encryptedData) {
     console.warn('Attempting to decrypt empty or undefined data.');
-    return ''; // Return empty string if the data is invalid
+    return '';
   }
   try {
     const decrypted = await decrypt({
@@ -36,18 +67,19 @@ const decryptData = async (encryptedData: string | undefined): Promise<string> =
   }
 };
 
-// Function to extract and decrypt the running total from the encrypted data blob
+/**
+ * Function: getDecryptedRunningTotal
+ * Description:
+ * Fetches the last entry's encrypted data for an account and decrypts the running total.
+ *
+ * @param {string} accountName - The name of the account.
+ * @returns {Promise<number>} - The decrypted running total as a number.
+ */
 export const getDecryptedRunningTotal = async (accountName: string): Promise<number> => {
   try {
     const encryptedData = await fetchLastEntry(accountName);
-
-    // Parse the encrypted data blob
     const parsedData = JSON.parse(encryptedData);
-
-    // Decrypt the running total specifically
     const decryptedRunningTotal = await decryptData(parsedData.runningTotal);
-
-    // Convert the decrypted running total to a number
     return parseFloat(decryptedRunningTotal);
   } catch (error) {
     console.error('Error getting decrypted running total:', error);
@@ -55,20 +87,34 @@ export const getDecryptedRunningTotal = async (accountName: string): Promise<num
   }
 };
 
-// Function to fetch distinct months and calculate the total number of months with entries
+/**
+ * Function: getTotalMonthsForAccount
+ * Description:
+ * Fetches distinct months with entries for an account and returns the count.
+ *
+ * @param {string} accountName - The name of the account.
+ * @returns {Promise<number>} - Total number of distinct months with entries.
+ */
 export const getTotalMonthsForAccount = async (accountName: string): Promise<number> => {
-    try {
-      const response = await axios.get(`http://localhost:5000/api/accounts/${accountName}/distinct-months`);
-      const months = response.data; // Array of unique 'YYYY-MM' formatted strings
-  
-      return months.length; // Number of distinct months with entries
-    } catch (error) {
-      console.error('Error fetching total months:', error);
-      throw error;
-    }
-  };
+  try {
+    const response = await axios.get(`http://localhost:5000/api/accounts/${accountName}/distinct-months`);
+    const months = response.data;
+    return months.length;
+  } catch (error) {
+    console.error('Error fetching total months:', error);
+    throw error;
+  }
+};
 
-// Function to calculate the average monthly balance for an account
+/**
+ * Function: calculateAccountAverage
+ * Description:
+ * Calculates the average monthly balance for an account by dividing the running total
+ * by the total number of distinct months.
+ *
+ * @param {string} accountName - The name of the account.
+ * @returns {Promise<number>} - Average monthly balance.
+ */
 export const calculateAccountAverage = async (accountName: string): Promise<number> => {
   try {
     const totalMonths = await getTotalMonthsForAccount(accountName);
@@ -78,7 +124,7 @@ export const calculateAccountAverage = async (accountName: string): Promise<numb
       console.warn(`No months with entries for account ${accountName}. Returning 0.`);
       return 0;
     }
-    
+
     return runningTotal / totalMonths;
   } catch (error) {
     console.error('Error calculating average monthly balance:', error);
@@ -86,37 +132,37 @@ export const calculateAccountAverage = async (accountName: string): Promise<numb
   }
 };
 
-// Function to calculate the average monthly liability for a specific account
+/**
+ * Function: calculateLiabilities
+ * Description:
+ * Calculates the average monthly liability for a specific account by analyzing debit and credit entries.
+ *
+ * @param {string} accountName - The name of the account.
+ * @returns {Promise<number>} - Average monthly liability.
+ */
 export const calculateLiabilities = async (accountName: string): Promise<number> => {
-    try {
-      // Fetch all entries for the account
-      const response = await axios.get(`http://localhost:5000/api/accounts/${accountName}/entries`);
-      const entries = response.data;
-  
-      let totalDebit = 0;
-      let totalCredit = 0;
-  
-      for (const entry of entries) {
-        // Parse and decrypt the encrypted data blob
-        const parsedData = JSON.parse(entry.encrypted_data);
-        const decryptedDebit = parseFloat(await decryptData(parsedData.debit));
-        const decryptedCredit = parseFloat(await decryptData(parsedData.credit));
-  
-        totalDebit += decryptedDebit;
-        totalCredit += decryptedCredit;
-      }
-  
-      // Calculate the liability as total debit minus total credit
-      const totalLiability = totalDebit - totalCredit;
-  
-      // Retrieve the total number of unique months for the account
-      const totalMonths = await getTotalMonthsForAccount(accountName);
-  
-      // Calculate the average monthly liability
-      return totalMonths > 0 ? totalLiability / totalMonths : 0;
-    } catch (error) {
-      console.error('Error calculating liabilities:', error);
-      throw error;
+  try {
+    const response = await axios.get(`http://localhost:5000/api/accounts/${accountName}/entries`);
+    const entries = response.data;
+
+    let totalDebit = 0;
+    let totalCredit = 0;
+
+    for (const entry of entries) {
+      const parsedData = JSON.parse(entry.encrypted_data);
+      const decryptedDebit = parseFloat(await decryptData(parsedData.debit));
+      const decryptedCredit = parseFloat(await decryptData(parsedData.credit));
+
+      totalDebit += decryptedDebit;
+      totalCredit += decryptedCredit;
     }
-  };
-  
+
+    const totalLiability = totalDebit - totalCredit;
+    const totalMonths = await getTotalMonthsForAccount(accountName);
+
+    return totalMonths > 0 ? totalLiability / totalMonths : 0;
+  } catch (error) {
+    console.error('Error calculating liabilities:', error);
+    throw error;
+  }
+};

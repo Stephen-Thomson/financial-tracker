@@ -1,16 +1,38 @@
+/**
+ * File: blockchain.ts
+ * Author: Stephen Thomson
+ * Date Created: 11/30/2024
+ * Last Modified: 11/30/2024
+ * Description:
+ * This module handles interactions with the blockchain and backend services for user and transaction management.
+ * It includes functions for:
+ * - Fetching user roles and details
+ * - Managing users (adding, removing)
+ * - Recording transactions on the blockchain and backend
+ * - Encrypting and decrypting data securely
+ */
+
 import axios, { AxiosError } from 'axios';
 import { createAction, getPublicKey } from '@babbage/sdk-ts';
 import pushdrop from 'pushdrop';
 import { encrypt, decrypt } from '@babbage/sdk-ts';
 
+// Define allowed user roles
 type AllowedRoles = 'Manager' | 'Accountant' | 'Staff' | 'Viewer' | 'keyPerson' | 'limitedUser';
 
-// Utility to check if an error is an AxiosError
+// Utility function to check if an error is an AxiosError
 const isAxiosError = (error: unknown): error is AxiosError => {
   return (error as AxiosError).isAxiosError !== undefined;
 };
 
-// Fetch the role of the current user based on their public key
+/**
+ * Function: fetchUserRoleFromBlockchain
+ * Description:
+ * Retrieves the role of the user with the provided public key from the backend.
+ *
+ * @param {string} publicKey - The public key of the user.
+ * @returns {Promise<string | null>} - The user's role or null if the user is not found.
+ */
 export const fetchUserRoleFromBlockchain = async (publicKey: string): Promise<string | null> => {
   try {
     const response = await axios.get(`http://localhost:5000/api/users/role/${publicKey}`);
@@ -30,7 +52,13 @@ export const fetchUserRoleFromBlockchain = async (publicKey: string): Promise<st
 };
 
 
-// Fetch users from the blockchain (simulated by database)
+/**
+ * Function: fetchUsersFromBlockchain
+ * Description:
+ * Fetches a list of users from the backend.
+ *
+ * @returns {Promise<{ email: string; role: AllowedRoles }[]>} - Array of users with email and roles.
+ */
 export const fetchUsersFromBlockchain = async (): Promise<{ email: string; role: AllowedRoles }[]> => {
   try {
     const response = await axios.get(`http://localhost:5000/api/users`);
@@ -45,7 +73,15 @@ export const fetchUsersFromBlockchain = async (): Promise<{ email: string; role:
   }
 };
 
-// Store a user on the blockchain with the full process
+/**
+ * Function: storeUserOnBlockchain
+ * Description:
+ * Adds a new user to the blockchain and backend with their details securely encrypted.
+ *
+ * @param {string} publicKey - The public key of the user.
+ * @param {string} email - The email of the user.
+ * @param {string} role - The role of the user.
+ */
 export const storeUserOnBlockchain = async (publicKey: string, email: string, role: string) => {
   try {
     // Step 1: Encrypt sensitive data (email and publicKey)
@@ -92,7 +128,19 @@ export const storeUserOnBlockchain = async (publicKey: string, email: string, ro
   }
 };
 
-// Remove a user from the blockchain
+/**
+ * Function: removeUserFromBlockchain
+ * Description:
+ * This function removes a user from the blockchain and marks them as deleted in the backend.
+ * It performs the following steps:
+ * 1. Fetches the user's public key and associated transaction details from the backend.
+ * 2. Generates an unlock script to redeem the user's token.
+ * 3. Creates a blockchain action to redeem the user's token and log the deletion.
+ * 4. Updates the user's status in the backend to reflect the deletion.
+ *
+ * @param {string} email - The email address of the user to remove.
+ * @returns {Promise<void>} - This function does not return a value but logs the result.
+ */
 export const removeUserFromBlockchain = async (email: string) => {
   try {
     // Fetch user public key and other details for blockchain transaction
@@ -166,9 +214,6 @@ export const removeUserFromBlockchain = async (email: string) => {
   }
 };
 
-
-// Transaction handling types and functions
-
 type TransactionData = {
   accountName: string;
   date: string;
@@ -178,33 +223,19 @@ type TransactionData = {
   userPublicKey: string;
 };
 
-type TransactionEntry = {
-  date: string;
-  description: string;
-  debit: {
-    accountName: string;
-    amount: number;
-  };
-  credit: {
-    accountName: string;
-    amount: number;
-  };
-  userPublicKey: string;
-};
-
-// Validate that debit and credit amounts match for double-entry accounting
-const validateTransaction = (debitAmount: number, creditAmount: number) => {
-  if (debitAmount !== creditAmount) {
-    throw new Error("Debit and Credit amounts must be equal.");
-  }
-};
-
-// Adjusted handleTransaction to take only one entry at a time
+/**
+ * Function: handleTransaction
+ * Description:
+ * Handles a single transaction entry by:
+ * 1. Validating the transaction details.
+ * 2. Retrieving the user's public key.
+ * 3. Posting the transaction to the backend and blockchain.
+ *
+ * @param {TransactionData} transaction - The transaction details, including account name, amounts, and description.
+ * @returns {Promise<void>} - This function does not return a value but logs the result.
+ */
 export const handleTransaction = async (transaction: TransactionData) => {
   try {
-    // Validate the single entry's debit and credit amounts
-    //validateTransaction(transaction.debitAmount, transaction.creditAmount);
-
     // Retrieve the user's public key
     const userPublicKey = await getPublicKey({ reason: 'Transaction authorization', identityKey: true });
 
@@ -217,8 +248,16 @@ export const handleTransaction = async (transaction: TransactionData) => {
   }
 };
 
-
-// Function to encrypt data, including public key and email
+/**
+ * Function: encryptData
+ * Description:
+ * Encrypts sensitive data, such as public keys or emails, for secure storage and transmission.
+ * The function uses the specified encryption protocol and returns the encrypted data as a string.
+ *
+ * @param {string} data - The plaintext data to encrypt.
+ * @returns {Promise<string>} - The encrypted data as a Base64-encoded string.
+ * @throws {Error} - Throws an error if encryption fails.
+ */
 const encryptData = async (data: string): Promise<string> => {
   const encrypted = await encrypt({
     plaintext: Buffer.from(data),
@@ -232,7 +271,20 @@ const encryptData = async (data: string): Promise<string> => {
 };
 
 
-// Function to add the key user with all necessary blockchain steps
+/**
+ * Function: addKeyUser
+ * Description:
+ * Adds a new key user to the blockchain by performing the following steps:
+ * 1. Encrypts sensitive user information (public key and email).
+ * 2. Creates a PushDrop token to represent the user on the blockchain.
+ * 3. Records the user creation as a blockchain action.
+ * 4. Stores the user's details in the backend database for reference.
+ *
+ * @param {string} publicKey - The public key of the user to add.
+ * @param {string} email - The email address of the user to add.
+ * @returns {Promise<void>} - This function does not return a value but logs the result.
+ * @throws {Error} - Throws an error if any of the steps fail.
+ */
 export const addKeyUser = async (publicKey: string, email: string) => {
   try {
     // Encrypt the email and public key to secure sensitive information
@@ -281,6 +333,23 @@ export const addKeyUser = async (publicKey: string, email: string) => {
   }
 };
 
+/**
+ * Function: postTransactionEntry
+ * Description:
+ * Records a financial transaction in both the blockchain and the backend database. The transaction is 
+ * encrypted to ensure confidentiality and linked to both a specific account and the general journal for auditing.
+ * 
+ * Steps:
+ * 1. Calculate the running total for the account.
+ * 2. Encrypt transaction fields (description, debit, credit, running total, public key).
+ * 3. Create a blockchain transaction using PushDrop tokens.
+ * 4. Save the transaction in the backend for persistence.
+ * 5. Record a corresponding entry in the General Journal for auditing purposes.
+ *
+ * @param {TransactionData} data - The transaction data to record.
+ * @returns {Promise<void>} - This function does not return a value but logs success.
+ * @throws {Error} - Throws an error if any step in the transaction recording fails.
+ */
 const postTransactionEntry = async (data: TransactionData) => {
   try {
     const runningTotal = await calculateRunningTotal(data.accountName, data.debitAmount, data.creditAmount);
@@ -384,6 +453,16 @@ const postTransactionEntry = async (data: TransactionData) => {
   }
 };
 
+/**
+ * Function: handleInitialTransaction
+ * Description:
+ * Records the initial financial transaction for a newly created account. The transaction is recorded 
+ * on the blockchain and backend and includes an initial running total.
+ *
+ * @param {TransactionData} data - The initial transaction data to record.
+ * @returns {Promise<void>} - This function does not return a value but logs success.
+ * @throws {Error} - Throws an error if any step in the transaction recording fails.
+ */
 export const handleInitialTransaction = async (data: TransactionData) => {
   try {
     // Calculate the initial running total
@@ -444,7 +523,15 @@ export const handleInitialTransaction = async (data: TransactionData) => {
   }
 };
 
-
+/**
+ * Function: getUserEmail
+ * Description:
+ * Retrieves the email address of a user based on their public key by querying the backend API.
+ *
+ * @param {string} publicKey - The public key of the user.
+ * @returns {Promise<string | null>} - The user's email address or null if not found.
+ * @throws {Error} - Throws an error if the backend request fails.
+ */
 export const getUserEmail = async (publicKey: string): Promise<string | null> => {
   try {
     const response = await axios.get(`http://localhost:5000/api/users/email/${publicKey}`);
@@ -455,7 +542,24 @@ export const getUserEmail = async (publicKey: string): Promise<string | null> =>
   }
 };
 
-// Helper function to calculate and retrieve the running total for the account entry
+/**
+ * Function: calculateRunningTotal
+ * Description:
+ * Calculates the running total for a specific account by querying the backend for the latest transaction 
+ * and adjusting the total based on the account type (basket) and the current transaction amounts.
+ *
+ * Steps:
+ * 1. Fetch the last transaction entry's encrypted data and account basket type.
+ * 2. Decrypt the running total from the last entry.
+ * 3. Adjust the running total based on the account basket (asset, expense, liability, etc.).
+ * 4. Return the updated running total.
+ *
+ * @param {string} accountName - The name of the account to calculate the running total for.
+ * @param {number} debitAmount - The debit amount of the current transaction.
+ * @param {number} creditAmount - The credit amount of the current transaction.
+ * @returns {Promise<number>} - The updated running total for the account.
+ * @throws {Error} - Throws an error if fetching or decrypting data fails.
+ */
 const calculateRunningTotal = async (accountName: string, debitAmount: number, creditAmount: number): Promise<number> => {
   try {
     // Step 1: Query backend for the last entry's encrypted data and basket
@@ -490,8 +594,22 @@ const calculateRunningTotal = async (accountName: string, debitAmount: number, c
   }
 };
 
-
-// Decrypt data function
+/**
+ * Function: decryptData
+ * Description:
+ * Decrypts encrypted data using the specified protocol and key identifiers. The function is designed 
+ * to handle encrypted transaction data and ensures secure decryption for sensitive information.
+ *
+ * Steps:
+ * 1. Verify that the input data is valid and not empty.
+ * 2. Attempt to decrypt the ciphertext using the specified protocol and key IDs.
+ * 3. Return the decrypted plaintext data as a string.
+ * 4. Handle and log errors if decryption fails.
+ *
+ * @param {string | undefined} encryptedData - The encrypted data to decrypt.
+ * @returns {Promise<string>} - The decrypted plaintext data.
+ * @throws {Error} - Returns a placeholder message ('[Decryption Failed]') if decryption fails.
+ */
 const decryptData = async (encryptedData: string | undefined): Promise<string> => {
   if (!encryptedData) {
     console.warn('Attempting to decrypt empty or undefined data.');

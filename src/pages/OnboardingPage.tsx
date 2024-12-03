@@ -1,3 +1,22 @@
+/**
+ * File: OnboardingPage.tsx
+ * Author: Stephen Thomson
+ * Date Created: 11/30/2024
+ * Description:
+ * This component facilitates the onboarding process for new users. It guides users through
+ * setting up primary accounts, adding team members, securing their wallet, and completing
+ * the onboarding process. The onboarding includes integration with blockchain for secure 
+ * financial management and journal creation.
+ *
+ * Functionalities:
+ * - Step-by-step onboarding process.
+ * - Create the General Journal table with a blockchain-backed entry.
+ * - Set up primary accounts (Income, Expenses, Assets, Liabilities).
+ * - Add team members and assign roles.
+ * - Guide users to back up their wallets securely.
+ * - Redirect to the dashboard upon completion.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -5,6 +24,14 @@ import { createAction, getPublicKey } from '@babbage/sdk-ts';
 import pushdrop from 'pushdrop';
 import { encrypt } from '@babbage/sdk-ts';
 
+/**
+ * Function: encryptData
+ * Description:
+ * Encrypts the given data using the Babbage SDK encryption module.
+ * 
+ * @param data - The string data to encrypt.
+ * @returns A promise that resolves to the encrypted string.
+ */
 const encryptData = async (data: string): Promise<string> => {
   const encrypted = await encrypt({
     plaintext: Buffer.from(data),
@@ -16,15 +43,28 @@ const encryptData = async (data: string): Promise<string> => {
   return typeof encrypted === 'string' ? encrypted : Buffer.from(encrypted).toString('base64');
 };
 
+/**
+ * Component: OnboardingPage
+ * Description:
+ * Guides users through the onboarding process. Includes blockchain-based journal creation,
+ * account setup, role assignment, and wallet backup.
+ * 
+ * Props:
+ * - publicKey: The user's public key.
+ * - email: The user's email address.
+ */
 const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ publicKey, email }) => {
   const navigate = useNavigate();
-
   const [step, setStep] = useState<number>(1);
   const [backupCompleted, setBackupCompleted] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  /**
+   * useEffect: Initialize the General Journal
+   * Description:
+   * Creates the General Journal table and makes a blockchain entry during onboarding.
+   */
   useEffect(() => {
-    // Create the General Journal with a blockchain entry as the onboarding starts
     const handleCreateGeneralJournal = async () => {
       setIsLoading(true);
       try {
@@ -32,22 +72,21 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
           reason: 'General Journal creation authorization',
           identityKey: true,
         });
-    
-        // Step 1: Create the General Journal table on the backend
+
+        // Step 1: Create the General Journal table
         await axios.post('http://localhost:5000/api/general-journal/create');
-    
-        // Check if the General Journal has the first entry
+
+        // Step 2: Check if the General Journal has the first entry
         const gjFirstEntry = await axios.get('http://localhost:5000/api/general-journal/first-entry');
         
         if (!gjFirstEntry.data.hasFirstEntry) {
-          // Step 2: Encrypt all necessary fields
+          // Encrypt data for blockchain entry
           const encryptedDescription = await encryptData('General Journal creation');
           const encryptedDebit = await encryptData('0');
           const encryptedCredit = await encryptData('0');
           const encryptedAccountName = await encryptData('General Journal');
           const encryptedPublicKey = await encryptData(userPublicKey);
-    
-          // Combine all encrypted fields into a single blob
+
           const encryptedGJDataBlob = JSON.stringify({
             description: encryptedDescription,
             debit: encryptedDebit,
@@ -55,8 +94,8 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
             publicKey: encryptedPublicKey,
             accountName: encryptedAccountName,
           });
-    
-          // Step 3: Generate the pushdrop token for the General Journal entry
+
+          // Generate PushDrop token for the journal entry
           const journalCreationOutputScript = await pushdrop.create({
             fields: [
               Buffer.from(new Date().toISOString()),
@@ -65,24 +104,23 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
             protocolID: 'financial tracker journalentry',
             keyID: userPublicKey || 'default-key-id',
           });
-    
-          // Step 4: Create a blockchain transaction with the generated script
+
+          // Create a blockchain transaction
           const actionResult = await createAction({
             outputs: [
               {
                 satoshis: 1,
                 script: journalCreationOutputScript,
                 description: 'General Journal creation entry',
-              }
+              },
             ],
             description: 'Creating General Journal entry transaction',
           });
-    
-          // Extract transaction details
+
           const txid = actionResult.txid;
           const rawTx = actionResult.rawTx;
-    
-          // Step 5: Insert the General Journal creation entry into the backend
+
+          // Insert the General Journal entry into the backend
           await axios.post('http://localhost:5000/api/general-journal/entry', {
             date: new Date().toISOString().split('T')[0],
             txid,
@@ -95,7 +133,7 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
             },
             metadata: { rawTx },
           });
-    
+
           console.log('General Journal created with blockchain entry');
         }
       } catch (error) {
@@ -107,19 +145,34 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
   
     handleCreateGeneralJournal();
   }, []);
-  
+
+  /**
+   * Function: handleBackupComplete
+   * Description:
+   * Marks the wallet backup step as completed.
+   */
   const handleBackupComplete = () => {
     setBackupCompleted(true);
   };
 
+  /**
+   * Function: handleNextStep
+   * Description:
+   * Advances to the next step in the onboarding process.
+   */
   const handleNextStep = () => {
-    if (step < 5) {
+    if (step < 4) {
       setStep(step + 1);
     } else {
       navigate('/dashboard');
     }
   };
 
+  /**
+   * Function: handlePreviousStep
+   * Description:
+   * Returns to the previous step in the onboarding process.
+   */
   const handlePreviousStep = () => {
     if (step > 1) {
       setStep(step - 1);
@@ -131,7 +184,7 @@ const OnboardingPage: React.FC<{ publicKey: string; email: string }> = ({ public
       <h1>Onboarding Process</h1>
       <p>Public Key: {publicKey}</p>
       <p>Email: {email}</p>
-      <p>Step {step} of 5</p>
+      <p>Step {step} of 4</p>
 
       {/* Step 1: Create Primary Accounts */}
       {step === 1 && (

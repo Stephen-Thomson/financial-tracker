@@ -1,3 +1,44 @@
+/**
+ * Filename: app.ts
+ * Author: Stephen Thomson
+ * Date Created: 11/30/2024
+ *
+ * Description:
+ * This file serves as the main backend server for the application. It uses Express.js to handle
+ * API endpoints, connecting to the database for various functionalities such as user management,
+ * account transactions, general journal operations, messaging, payment tokens, and UHRP file management.
+ *
+ * Key Functionalities:
+ * 1. User Management:
+ *    - Add, remove, and retrieve users.
+ *    - Assign roles and track users on the blockchain.
+ * 
+ * 2. Account Management:
+ *    - Create account tables dynamically.
+ *    - Insert and retrieve entries for specific accounts.
+ *
+ * 3. General Journal Operations:
+ *    - Create and retrieve entries from the general journal.
+ *    - Check for the existence of the first entry.
+ * 
+ * 4. Messaging System:
+ *    - Manage messages, including sending, receiving, and updating their statuses.
+ *
+ * 5. Payment Token Operations:
+ *    - Add, retrieve, and update payment tokens, as well as handle their metadata and statuses.
+ *
+ * 6. UHRP File Management:
+ *    - Upload and retrieve UHRP files, including their metadata and expiration times.
+ *
+ * 7. Miscellaneous:
+ *    - Fetch distinct months for account entries.
+ *
+ * Server Configuration:
+ * - Port: Dynamically assigned via environment variables or defaults to 5000.
+ * - Middleware: CORS, JSON parser.
+ *
+ */
+
 import express from 'express';
 import cors from 'cors';
 import {
@@ -11,10 +52,16 @@ import {
   getDistinctMonthsForAccount, checkGeneralJournalFirstEntry, addUploadedFile, getAllUploadedFiles,
 } from './db';
 
+// Initialize an Express.js application instance
 const app = express();
+
+// Define the port number for the server, using an environment variable if available, or defaulting to 5000
 const port = process.env.PORT || 5000;
 
+// Enable Cross-Origin Resource Sharing (CORS) to allow requests from different origins
 app.use(cors());
+
+// Add middleware to parse incoming JSON payloads in request bodies
 app.use(express.json());
 
 // Add a new user with blockchain transaction, tokenized, and encrypted data
@@ -183,6 +230,7 @@ app.get('/api/users/email/:publicKey', async (req, res) => {
   }
 });
 
+// Start the server on the specified port
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
@@ -228,7 +276,6 @@ app.get('/api/messages/pending/:recipientPublicKey', async (req, res) => {
     res.status(500).json({ message: 'Error fetching messages' });
   }
 });
-
 
 // Update message status
 app.patch('/api/messages/:id', async (req, res) => {
@@ -308,7 +355,6 @@ app.get('/api/accounts', async (req, res) => {
   }
 });
 
-
 // Get all entries for a specific account by account ID
 app.get('/api/accounts/:accountId/entries', async (req, res) => {
   const { accountId } = req.params;
@@ -320,7 +366,6 @@ app.get('/api/accounts/:accountId/entries', async (req, res) => {
     res.status(500).json({ message: 'Error fetching account entries' });
   }
 });
-
 
 // Get all entries in the General Journal
 app.get('/api/general-journal', async (req, res) => {
@@ -379,6 +424,3 @@ app.get('/api/uploaded-files', async (req, res) => {
     res.status(500).json({ message: 'Error retrieving uploaded files.' });
   }
 });
-
-
-

@@ -1,3 +1,44 @@
+/**
+ * Filename: index.ts
+ * Author: Stephen Thomson
+ * Date Created: 11/30/2024
+ * 
+ * Description:
+ * This file sets up and manages database operations for the application,
+ * including creating tables, interacting with user data, messages, accounts,
+ * and handling blockchain-related operations.
+ * 
+ * Functions:
+ * - initializeDatabase: Initializes the database and creates required tables.
+ * - getUsers: Retrieves all users from the database.
+ * - addUser: Adds a new user with blockchain transaction details.
+ * - removeUser: Marks a user as deleted and logs the deletion transaction.
+ * - getUserRole: Retrieves the role of a user based on their public key.
+ * - createAccountTable: Creates a new account table for a user.
+ * - insertAccountEntry: Adds an entry to a specific account table.
+ * - createGeneralJournalTable: Creates the General Journal table.
+ * - getUserCount: Gets the total count of users in the database.
+ * - checkUserExists: Checks if a user exists by their public key.
+ * - viewAccountEntries: Retrieves entries for a specific account.
+ * - insertGeneralJournalEntry: Inserts an entry into the General Journal.
+ * - getUserEmailByPublicKey: Retrieves a user's email by their public key.
+ * - getLastEntry: Gets the last entry in an account table.
+ * - addMessage: Adds a new message to the messages table.
+ * - getMessagesForUser: Retrieves messages for a specific user.
+ * - updateMessageStatus: Updates the status of a message.
+ * - addPaymentToken: Adds a payment token to the database.
+ * - getPaymentTokensByStatus: Retrieves payment tokens by status.
+ * - updatePaymentTokenStatus: Updates the status of a payment token.
+ * - getPaymentTokenByTxid: Retrieves a payment token by transaction ID.
+ * - getAccounts: Retrieves all accounts from the database.
+ * - getAccountEntries: Retrieves entries from a specific account.
+ * - getGeneralJournalEntries: Retrieves all entries from the General Journal.
+ * - getDistinctMonthsForAccount: Gets distinct months from an account's entries.
+ * - checkGeneralJournalFirstEntry: Checks if the General Journal has any entries.
+ * - addUploadedFile: Adds an uploaded file record to the database.
+ * - getAllUploadedFiles: Retrieves all uploaded files from the database.
+ */
+
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import { RowDataPacket } from 'mysql2';
@@ -13,6 +54,9 @@ const pool = mysql.createPool({
   database: process.env.MYSQL_DATABASE,
 });
 
+/**
+ * Initializes the database and creates required tables if they do not exist.
+ */
 const initializeDatabase = async () => {
   try {
     const connection = await mysql.createConnection({
@@ -25,7 +69,7 @@ const initializeDatabase = async () => {
     console.log('Database created or already exists.');
     await connection.query(`USE ${process.env.MYSQL_DATABASE}`);
 
-    // Consolidated `users` table with role, blockchain tracking fields, and basket type
+    // Create users table for storing user data
     await connection.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -105,13 +149,29 @@ const initializeDatabase = async () => {
   }
 };
 
-// Get all users
+/**
+ * Retrieves all users from the database.
+ * @returns {Promise<Array>} Array of user objects.
+ */
 export const getUsers = async () => {
   const [rows] = await pool.query('SELECT email, role, public_key FROM users');
   return rows;
 };
 
-// Add a new user with blockchain transaction data, tokenization, encryption, and basket type
+/**
+ * Adds a new user with blockchain transaction details to the database.
+ * 
+ * @param {string} publicKey - The user's public key.
+ * @param {string} email - The user's email address.
+ * @param {string} role - The user's role (e.g., 'keyPerson', 'Manager').
+ * @param {string} txid - The blockchain transaction ID.
+ * @param {string} outputScript - The blockchain output script.
+ * @param {string} tokenId - The unique identifier for tokenization.
+ * @param {object} encryptedData - Encrypted user data.
+ * @param {object} encryptionMetadata - Metadata for encryption (keys, algorithms).
+ * @param {object} metadata - Additional metadata for tracking purposes.
+ * @throws {Error} Throws an error if the database insertion fails.
+ */
 export const addUser = async (
   publicKey: string,
   email: string,
@@ -147,7 +207,19 @@ export const addUser = async (
 };
 
 
-// Remove a user and log the deletion transaction
+/**
+ * Marks a user as deleted and logs the deletion transaction.
+ * 
+ * @param {string} email - The user's email address.
+ * @param {string} txid - The blockchain transaction ID.
+ * @param {string} outputScript - The blockchain output script.
+ * @param {string} tokenId - The unique identifier for tokenization.
+ * @param {string} encryptedData - Encrypted user data.
+ * @param {object} encryptionMetadata - Metadata for encryption (keys, algorithms).
+ * @param {object} metadata - Additional metadata for tracking purposes.
+ * @returns {Promise<object>} The email and transaction ID of the deleted user.
+ * @throws {Error} Throws an error if the database update fails.
+ */
 export const removeUser = async (
   email: string,
   txid: string,
@@ -170,24 +242,32 @@ export const removeUser = async (
   }
 };
 
-// Get user role based on public key
+/**
+ * Retrieves the role of a user based on their public key.
+ * 
+ * @param {string} publicKey - The user's public key.
+ * @returns {Promise<string | null>} The user's role or null if no role exists.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getUserRole = async (publicKey: string) => {
   const [userCountRows]: [RowDataPacket[], any] = await pool.query('SELECT COUNT(*) as count FROM users');
   const userCount = userCountRows[0].count;
 
-  // If no users exist, return null to indicate no role exists
   if (userCount === 0) {
-    return null;
+    return null; // No users exist, return null
   }
 
-  // Fetch the role of the user with the given public key
   const [rows]: [RowDataPacket[], any] = await pool.query('SELECT role FROM users WHERE public_key = ?', [publicKey]);
   return rows.length ? rows[0].role : null;
 };
 
-
-
-// Create a new account table for a user
+/**
+ * Creates a new account-specific table and adds the account to the `accounts` table.
+ * 
+ * @param {string} accountName - The name of the account.
+ * @param {string} basket - The basket type (e.g., 'asset', 'income').
+ * @throws {Error} Throws an error if table creation or insertion fails.
+ */
 export const createAccountTable = async (accountName: string, basket: string) => {
   try {
     const tableName = `account_${accountName}`;
@@ -207,11 +287,9 @@ export const createAccountTable = async (accountName: string, basket: string) =>
       );
     `;
 
-    // Execute the query to create the account-specific table
     await pool.query(createTableQuery);
     console.log(`Table ${tableName} created successfully with basket '${basket}'`);
 
-    // Insert the account details into the `accounts` table
     const insertAccountQuery = `
       INSERT INTO accounts (name, basket)
       VALUES (?, ?)
@@ -225,8 +303,19 @@ export const createAccountTable = async (accountName: string, basket: string) =>
   }
 };
 
-
-// Insert an entry into an account table
+/**
+ * Inserts an entry into an account-specific table.
+ * 
+ * @param {string} accountName - The name of the account table.
+ * @param {string} date - The date of the transaction.
+ * @param {string} txid - The blockchain transaction ID.
+ * @param {string} outputScript - The blockchain output script.
+ * @param {string} tokenId - The unique identifier for tokenization.
+ * @param {string} encryptedData - Encrypted transaction data.
+ * @param {object} encryptionMetadata - Metadata for encryption.
+ * @param {object} metadata - Additional transaction metadata.
+ * @throws {Error} Throws an error if the entry insertion fails.
+ */
 export const insertAccountEntry = async (
   accountName: string,
   date: string,
@@ -264,7 +353,11 @@ export const insertAccountEntry = async (
 };
 
 
-// Create General Journal Table
+/**
+ * Creates the General Journal table if it does not already exist.
+ * 
+ * @throws {Error} Throws an error if the table creation fails.
+ */
 export const createGeneralJournalTable = async () => {
   try {
     const createTableQuery = `
@@ -290,19 +383,36 @@ export const createGeneralJournalTable = async () => {
   }
 };
 
-// Get count of users
+/**
+ * Retrieves the total count of users from the `users` table.
+ * 
+ * @returns {Promise<number>} The total number of users.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getUserCount = async () => {
   const [rows]: [RowDataPacket[], any] = await pool.query('SELECT COUNT(*) as count FROM users');
   return rows[0].count;
 };
 
-// Check if a user exists by public key
+/**
+ * Checks if a user exists in the `users` table based on their public key.
+ * 
+ * @param {string} publicKey - The public key of the user to check.
+ * @returns {Promise<boolean>} `true` if the user exists, otherwise `false`.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const checkUserExists = async (publicKey: string): Promise<boolean> => {
   const [rows]: [RowDataPacket[], any] = await pool.query('SELECT COUNT(*) as count FROM users WHERE public_key = ?', [publicKey]);
   return rows[0].count > 0;
 };
 
-// Get account entries for a user
+/**
+ * Retrieves all entries for a specific account table.
+ * 
+ * @param {string} accountName - The name of the account whose entries are to be retrieved.
+ * @returns {Promise<any[]>} An array of account entries.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const viewAccountEntries = async (accountName: string) => {
   try {
     const tableName = `account_${accountName}`;
@@ -322,7 +432,18 @@ export const viewAccountEntries = async (accountName: string) => {
   }
 };
 
-// Insert an entry into the General Journal
+/**
+ * Inserts an entry into the General Journal table.
+ * 
+ * @param {string} date - The date of the entry.
+ * @param {string} txid - The blockchain transaction ID.
+ * @param {string} outputScript - The blockchain output script.
+ * @param {string} tokenId - The unique identifier for tokenization.
+ * @param {string} encryptedData - Encrypted data for the entry.
+ * @param {object} encryptionMetadata - Metadata for encryption.
+ * @param {object} metadata - Additional metadata for the entry.
+ * @throws {Error} Throws an error if the insertion fails.
+ */
 export const insertGeneralJournalEntry = async (
   date: string,
   txid: string,
@@ -356,7 +477,13 @@ export const insertGeneralJournalEntry = async (
   }
 };
 
-// Get user email by public key
+/**
+ * Retrieves the email of a user based on their public key.
+ * 
+ * @param {string} publicKey - The public key of the user.
+ * @returns {Promise<string | null>} The email address of the user if found, otherwise `null`.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getUserEmailByPublicKey = async (publicKey: string): Promise<string | null> => {
   const [rows] = await pool.query<RowDataPacket[]>( // Specify the query result type
     'SELECT email FROM users WHERE public_key = ?', 
@@ -366,7 +493,14 @@ export const getUserEmailByPublicKey = async (publicKey: string): Promise<string
   return rows.length > 0 ? (rows[0] as RowDataPacket).email : null;
 };
 
-// Function to get the last entry’s encrypted data blob and basket for an account
+/**
+ * Retrieves the last entry's encrypted data blob and basket for a specific account.
+ * 
+ * @param {string} accountName - The name of the account to query.
+ * @returns {Promise<{ encryptedData: string; basket: string } | null>} 
+ * An object containing the `encryptedData` and `basket` if found, otherwise `null`.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getLastEntry = async (accountName: string) => {
   const tableName = `account_${accountName}`;
 
@@ -381,7 +515,17 @@ export const getLastEntry = async (accountName: string) => {
   return rows.length > 0 ? { encryptedData: rows[0].encrypted_data, basket: rows[0].basket } : null;
 };
 
-// Add a new message
+/**
+ * Adds a new message to the `messages` table.
+ * 
+ * @param {string} messageId - A unique identifier for the message.
+ * @param {string} senderPublicKey - The public key of the sender.
+ * @param {string} recipientPublicKey - The public key of the recipient.
+ * @param {string} messageBody - The content of the message.
+ * @param {'request' | 'approval' | 'notification' | 'payment'} messageType - The type of the message.
+ * @returns {Promise<void>} Resolves when the message is successfully added.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const addMessage = async (
   messageId: string,
   senderPublicKey: string,
@@ -401,7 +545,13 @@ export const addMessage = async (
   }
 };
 
-/// Retrieve messages for a user
+/**
+ * Retrieves all messages for a given recipient public key.
+ * 
+ * @param {string} recipientPublicKey - The recipient's public key.
+ * @returns {Promise<any[]>} An array of messages.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getMessagesForUser = async (recipientPublicKey: string) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
@@ -420,7 +570,13 @@ export const getMessagesForUser = async (recipientPublicKey: string) => {
   }
 };
 
-// Update message status
+/**
+ * Updates the status of a message in the `messages` table.
+ * 
+ * @param {string} messageId - The ID of the message.
+ * @param {'pending' | 'acknowledged' | 'error'} status - The new status of the message.
+ * @throws {Error} Throws an error if the update fails.
+ */
 export const updateMessageStatus = async (messageId: string, status: 'pending' | 'acknowledged' | 'error') => {
   try {
     await pool.query(
@@ -434,7 +590,18 @@ export const updateMessageStatus = async (messageId: string, status: 'pending' |
   }
 };
 
-// Function to add a new payment token
+/**
+ * Adds a new payment token to the `payment_tokens` table.
+ * 
+ * @param {string} encryptedData - The encrypted data of the payment token.
+ * @param {string} txid - The transaction ID associated with the token.
+ * @param {string} outputScript - The output script of the transaction.
+ * @param {string} tokenId - The unique identifier for the token.
+ * @param {object} encryptionMetadata - Metadata related to the encryption (e.g., keys, algorithms).
+ * @param {object} metadata - Additional metadata associated with the token.
+ * @returns {Promise<any>} The result of the database insert operation.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const addPaymentToken = async (
   encryptedData: string,
   txid: string,
@@ -457,7 +624,13 @@ export const addPaymentToken = async (
   }
 };
 
-// Function to retrieve payment tokens by transaction status
+/**
+ * Retrieves payment tokens by their transaction status.
+ * 
+ * @param {string} status - The transaction status to filter by (e.g., 'pending', 'completed').
+ * @returns {Promise<RowDataPacket[]>} An array of payment tokens with the specified status.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getPaymentTokensByStatus = async (status: string) => {
   try {
     const [rows]: [RowDataPacket[], any] = await pool.query(
@@ -471,7 +644,14 @@ export const getPaymentTokensByStatus = async (status: string) => {
   }
 };
 
-// Function to update the transaction status of a payment token
+/**
+ * Updates the transaction status of a specific payment token.
+ * 
+ * @param {string} txid - The transaction ID of the token to update.
+ * @param {string} status - The new status to set (e.g., 'completed', 'failed').
+ * @returns {Promise<any>} The result of the update operation.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const updatePaymentTokenStatus = async (txid: string, status: string) => {
   try {
     const [result] = await pool.query(
@@ -487,7 +667,13 @@ export const updatePaymentTokenStatus = async (txid: string, status: string) => 
   }
 };
 
-// Function to retrieve a specific payment token by txid
+/**
+ * Retrieves a specific payment token by its transaction ID (txid).
+ * 
+ * @param {string} txid - The transaction ID of the token to retrieve.
+ * @returns {Promise<RowDataPacket | null>} The payment token object if found, otherwise `null`.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getPaymentTokenByTxid = async (txid: string) => {
   try {
     const [rows]: [RowDataPacket[], any] = await pool.query(
@@ -501,7 +687,12 @@ export const getPaymentTokenByTxid = async (txid: string) => {
   }
 };
 
-// Retrieve a list of all account tables
+/**
+ * Retrieves a list of all accounts from the `accounts` table.
+ * 
+ * @returns {Promise<RowDataPacket[]>} An array of account objects.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getAccounts = async () => {
   try {
     const [rows] = await pool.query('SELECT id, name, basket FROM accounts');
@@ -512,7 +703,13 @@ export const getAccounts = async () => {
   }
 };
 
-// Retrieve entries for a specific account
+/**
+ * Retrieves all entries for a specific account.
+ * 
+ * @param {string} accountName - The name of the account whose entries are to be retrieved.
+ * @returns {Promise<RowDataPacket[]>} An array of account entry objects.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getAccountEntries = async (accountName: string) => {
   try {
     const tableName = `account_${accountName}`;
@@ -525,7 +722,12 @@ export const getAccountEntries = async (accountName: string) => {
   }
 };
 
-// Retrieve all entries from the General Journal
+/**
+ * Retrieves all entries from the General Journal table.
+ * 
+ * @returns {Promise<any[]>} An array of General Journal entries.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getGeneralJournalEntries = async () => {
   try {
     const query = `SELECT date, encrypted_data, encryption_metadata FROM general_journal`;
@@ -537,7 +739,13 @@ export const getGeneralJournalEntries = async () => {
   }
 };
 
-// Function to get distinct months from an account's entries
+/**
+ * Retrieves distinct months from an account's entries.
+ * 
+ * @param {string} accountName - The name of the account.
+ * @returns {Promise<string[]>} An array of unique months in 'YYYY-MM' format.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getDistinctMonthsForAccount = async (accountName: string) => {
   const tableName = `account_${accountName}`;
 
@@ -551,7 +759,15 @@ export const getDistinctMonthsForAccount = async (accountName: string) => {
   return rows.map(row => row.month); // Return an array of unique 'YYYY-MM' formatted strings
 };
 
-// Check if there is an existing first entry in the General Journal
+/**
+ * Checks if there is an existing first entry in the General Journal.
+ * 
+ * This function queries the `general_journal` table to count the number of entries
+ * and determines if the journal has at least one entry.
+ * 
+ * @returns {Promise<boolean>} A boolean indicating whether the General Journal has at least one entry.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const checkGeneralJournalFirstEntry = async () => {
   try {
     const [rows]: [RowDataPacket[], any] = await pool.query(`
@@ -564,7 +780,16 @@ export const checkGeneralJournalFirstEntry = async () => {
   }
 };
 
-// Function for adding an uploaded file to the database
+/**
+ * Adds an uploaded file to the `uploaded_files` table.
+ * 
+ * @param {string} fileName - The name of the uploaded file.
+ * @param {Date} uploadTime - The time the file was uploaded.
+ * @param {Date} expirationTime - The expiration time for the file.
+ * @param {string} uhrpHash - The UHRP hash of the file.
+ * @param {string} publicUrl - The public URL of the uploaded file.
+ * @throws {Error} Throws an error if the insertion fails.
+ */
 export const addUploadedFile = async (
   fileName: string,
   uploadTime: Date,
@@ -584,7 +809,12 @@ export const addUploadedFile = async (
   }
 };
 
-// Function to retrieve all uploaded files
+/**
+ * Retrieves all uploaded files from the `uploaded_files` table.
+ * 
+ * @returns {Promise<any[]>} An array of uploaded files.
+ * @throws {Error} Throws an error if the query fails.
+ */
 export const getAllUploadedFiles = async () => {
   try {
     const [rows]: [RowDataPacket[], any] = await pool.query(`
